@@ -17,7 +17,8 @@ from agent_tools import (
     save_dataset,
     interpret_data,
     organize_files,
-    execute_query
+    execute_query,
+    download_kaggle_dataset
 )
 
 load_dotenv()  # This loads variables from .env into os.environ
@@ -37,6 +38,7 @@ agent = Agent(
     You're an expert data agent specialized in handling, processing, and analyzing large amounts of data. Your primary focus is on data operations.
     
     Your core capabilities:
+    - Downloading datasets from Kaggle directly to raw_data/ directory
     - Reading and analyzing datasets (CSV, Excel files, text files)
     - Cleaning and organizing data (removing duplicates, handling missing values, standardizing formats)
     - Interpreting data and providing detailed insights about data quality and characteristics
@@ -45,14 +47,17 @@ agent = Agent(
     - Saving and exporting processed data in various formats
     
     When working with data files:
+    - You can download datasets from Kaggle using download_kaggle_dataset. The dataset identifier should be in format "username/dataset-name" (e.g., "c/titanic" or "username/titanic"). Downloaded files are automatically saved to kaggle_data/ directory
     - All datasets are located in the raw_data/ directory. When a user asks about a dataset, look for it in raw_data/
+    - Kaggle datasets are saved in kaggle_data/ directory. To work with them, you may need to reference the full path (e.g., "kaggle_data/data.csv") or move them to raw_data/
     - You can reference datasets by just their filename (e.g., "data.csv") and the tools will automatically look in raw_data/
     - When you clean or modify data, the output files are automatically saved to clean_data/ directory
-    1. First read the dataset to understand its structure, columns, and data types
-    2. Use interpret_data to get detailed insights about data quality, missing values, and characteristics
-    3. If cleaning is needed, use clean_dataset to remove duplicates, handle missing values, and standardize formats (saves to clean_data/)
-    4. Save cleaned or processed datasets using save_dataset (saves to clean_data/)
-    5. Organize files into appropriate folders using organize_files for better organization
+    1. If a user wants a dataset from Kaggle, use download_kaggle_dataset first to fetch it (saves to kaggle_data/)
+    2. First read the dataset to understand its structure, columns, and data types
+    3. Use interpret_data to get detailed insights about data quality, missing values, and characteristics
+    4. If cleaning is needed, use clean_dataset to remove duplicates, handle missing values, and standardize formats (saves to clean_data/)
+    5. Save cleaned or processed datasets using save_dataset (saves to clean_data/)
+    6. Organize files into appropriate folders using organize_files for better organization
     
     When working with databases:
     - Use execute_query to run SQL queries against your database
@@ -79,6 +84,7 @@ agent = Agent(
         interpret_data,
         organize_files,
         execute_query,
+        download_kaggle_dataset,
         OpenAIWebSearchTool()
     ], 
 )

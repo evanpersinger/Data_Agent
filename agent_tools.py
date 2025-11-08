@@ -6,6 +6,7 @@ from pathlib import Path
 import os
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
+from kaggle.api.kaggle_api_extended import KaggleApi
 
 load_dotenv()
 
@@ -13,9 +14,11 @@ load_dotenv()
 BASE_DIR = Path(__file__).parent
 RAW_DATA_DIR = BASE_DIR / "raw_data"
 CLEAN_DATA_DIR = BASE_DIR / "clean_data"
+KAGGLE_DATA_DIR = BASE_DIR / "kaggle_data"
 
-# Ensure clean_data directory exists
+# Ensure directories exist
 CLEAN_DATA_DIR.mkdir(exist_ok=True)
+KAGGLE_DATA_DIR.mkdir(exist_ok=True)
 
 
 # read content of a text file
@@ -327,4 +330,60 @@ def execute_query(query: str, database_url: str = None) -> str:
                 
     except Exception as e:
         return f"Database error: {str(e)}"
+
+
+# download dataset from Kaggle
+def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
+    """
+    Download a dataset from Kaggle and save it to the kaggle_data/ directory.
+    
+    Args:
+        dataset: Kaggle dataset identifier in format "username/dataset-name" (e.g., "titanic" or "username/titanic")
+        unzip: Whether to automatically unzip downloaded files (default: True)
+    
+    Returns:
+        A message indicating success and where files were saved
+    """
+    try:
+        # Initialize Kaggle API
+        api = KaggleApi()
+        api.authenticate()
+        
+        # Ensure kaggle_data directory exists
+        KAGGLE_DATA_DIR.mkdir(exist_ok=True)
+        
+        # Download dataset to kaggle_data/
+        api.dataset_download_files(dataset, path=str(KAGGLE_DATA_DIR), unzip=unzip)
+        
+        # Get list of downloaded files
+        if unzip:
+            # If unzipped, list all files in kaggle_data/
+            downloaded_files = list(KAGGLE_DATA_DIR.glob("*"))
+            # Filter out directories
+            files = [f.name for f in downloaded_files if f.is_file()]
+        else:
+            # If not unzipped, look for zip files
+            files = [f.name for f in KAGGLE_DATA_DIR.glob("*.zip")]
+        
+        if not files:
+            return f"Dataset '{dataset}' downloaded but no files found in kaggle_data/"
+        
+        result = f"Successfully downloaded dataset '{dataset}' to kaggle_data/\n"
+        result += f"Files downloaded: {', '.join(files[:10])}"  # Show first 10 files
+        if len(files) > 10:
+            result += f" (and {len(files) - 10} more files)"
+        
+        return result
+        
+    except Exception as e:
+        error_msg = str(e)
+        if "401" in error_msg or "Unauthorized" in error_msg:
+            return f"Error: Kaggle authentication failed. Please set up your Kaggle API credentials:\n" \
+                   f"1. Go to https://www.kaggle.com/settings and create an API token\n" \
+                   f"2. Place kaggle.json in ~/.kaggle/ directory\n" \
+                   f"3. Set permissions: chmod 600 ~/.kaggle/kaggle.json"
+        elif "404" in error_msg or "not found" in error_msg.lower():
+            return f"Error: Dataset '{dataset}' not found. Make sure the dataset name is correct (format: 'username/dataset-name')"
+        else:
+            return f"Error downloading dataset '{dataset}': {error_msg}"
 
