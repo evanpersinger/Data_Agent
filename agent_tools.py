@@ -347,6 +347,8 @@ def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
     try:
         # Initialize Kaggle API
         api = KaggleApi()
+        
+        # Authenticate - checks for KAGGLE_USERNAME/KAGGLE_KEY env vars or ~/.kaggle/kaggle.json
         api.authenticate()
         
         # Ensure kaggle_data directory exists
@@ -378,7 +380,13 @@ def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
     except Exception as e:
         error_msg = str(e)
         if "401" in error_msg or "Unauthorized" in error_msg:
-            return f"Error: Kaggle authentication failed. Please set up your Kaggle API credentials:\n" \
+            return f"Error: Kaggle authentication failed. Please set up your Kaggle API credentials using one of these methods:\n\n" \
+                   f"Method 1 (Environment Variables - Recommended):\n" \
+                   f"1. Go to https://www.kaggle.com/settings and create an API token\n" \
+                   f"2. Add to your .env file:\n" \
+                   f"   KAGGLE_USERNAME=your_username\n" \
+                   f"   KAGGLE_KEY=your_api_key\n\n" \
+                   f"Method 2 (kaggle.json file):\n" \
                    f"1. Go to https://www.kaggle.com/settings and create an API token\n" \
                    f"2. Place kaggle.json in ~/.kaggle/ directory\n" \
                    f"3. Set permissions: chmod 600 ~/.kaggle/kaggle.json"
