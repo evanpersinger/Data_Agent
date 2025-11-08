@@ -1,2 +1,4 @@
 venv/
 .env
+clean_data/
+raw_data/
