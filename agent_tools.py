@@ -4,6 +4,7 @@
 import pandas as pd
 from pathlib import Path
 import os
+import inspect
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 from kaggle.api.kaggle_api_extended import KaggleApi
@@ -287,6 +288,52 @@ def interpret_data(filename: str) -> str:
         return f"Could not interpret {file_path}: {e}"
 
 
+# organize files
+def organize_files(filename: str, target_folder: str = None) -> str:
+    """
+    Organize files into folders for better data management.
+    
+    Args:
+        filename: Name of the file to organize (if just a filename, looks in current directory)
+        target_folder: Target folder name. If not provided, organizes based on file type.
+    """
+    try:
+        import shutil
+        
+        # If filename is just a name (no path), look in BASE_DIR
+        if '/' not in filename and '\\' not in filename:
+            file_path = BASE_DIR / filename
+        else:
+            file_path = BASE_DIR / filename
+        
+        if not file_path.exists():
+            return f"File {file_path} not found."
+        
+        # Determine target folder
+        if target_folder is None:
+            # Organize by file extension
+            ext = file_path.suffix.lower()
+            if ext in ['.csv', '.xlsx', '.xls']:
+                target_folder = "data_files"
+            elif ext in ['.txt', '.md', '.json']:
+                target_folder = "text_files"
+            elif ext in ['.pdf', '.doc', '.docx']:
+                target_folder = "documents"
+            else:
+                target_folder = "other_files"
+        
+        # Create target folder if it doesn't exist
+        target_dir = BASE_DIR / target_folder
+        target_dir.mkdir(exist_ok=True)
+        
+        # Move file
+        destination = target_dir / file_path.name
+        shutil.move(str(file_path), str(destination))
+        
+        return f"File {filename} moved to {target_folder}/{file_path.name}"
+    except Exception as e:
+        return f"Could not organize file: {e}"
+
 
 # execute database query
 def execute_query(query: str, database_url: str = None) -> str:
@@ -394,4 +441,50 @@ def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
             return f"Error: Dataset '{dataset}' not found. Make sure the dataset name is correct (format: 'username/dataset-name')"
         else:
             return f"Error downloading dataset '{dataset}': {error_msg}"
+
+
+def get_function_schema(func):
+    """Convert a Python function to OpenAI function calling schema."""
+    sig = inspect.signature(func)
+    doc = inspect.getdoc(func) or ""
+    
+    properties = {}
+    required = []
+    
+    for param_name, param in sig.parameters.items():
+        if param_name == 'self':
+            continue
+            
+        param_type = "string"  # default
+        if param.annotation != inspect.Parameter.empty:
+            if param.annotation == bool:
+                param_type = "boolean"
+            elif param.annotation == int:
+                param_type = "integer"
+            elif param.annotation == float:
+                param_type = "number"
+        
+        param_info = {"type": param_type, "description": ""}
+        
+        if param.default != inspect.Parameter.empty:
+            # Optional parameter - don't add to required
+            if param.default is not None:
+                param_info["default"] = str(param.default)
+        else:
+            required.append(param_name)
+        
+        properties[param_name] = param_info
+    
+    return {
+        "type": "function",
+        "function": {
+            "name": func.__name__,
+            "description": doc.split('\n')[0] if doc else f"Call the {func.__name__} function",
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": required
+            }
+        }
+    }
 
