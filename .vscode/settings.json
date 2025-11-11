@@ -1,0 +1,10 @@
+{
+    "cSpell.words": [
+        "agentic",
+    ],
+
+    "files.exclude": {
+        "**/venv": true,
+        "**/__pycache__": true
+    }
+}

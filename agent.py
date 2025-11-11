@@ -1,11 +1,16 @@
 # agent.py
 # This agent is specialized in handling, processing, and analyzing large amounts of data.
-# Agent configuration and instructions
+# Using OpenAI's Assistants API (agentic framework)
 
 import os
 import json
+import time
 from openai import OpenAI
-from dotenv import load_dotenv
+from agents import Agent, Runner, SQLiteSession, WebSearchTool, function_tool, ModelSettings
+from agents.stream_events import RawResponsesStreamEvent
+from agents.tracing import set_tracing_disabled
+from openai.types.responses import ResponseTextDeltaEvent
+import asyncio
 
 
 # import tools from agent_tools.py
@@ -24,149 +29,124 @@ from agent_tools import (
 )
 
 
-load_dotenv()  # This loads variables from .env into os.environ
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Model used by the agent
-MODEL = "gpt-4o-mini"
 
-# System instructions for the agent
-SYSTEM_INSTRUCTIONS = """
-You're an expert data agent specialized in handling, processing, and analyzing large amounts of data. Your primary focus is on data operations.
-
-Your core capabilities:
-- Downloading datasets from Kaggle directly to raw_data/ directory
-- Reading and analyzing datasets (CSV, Excel files, text files)
-- Cleaning and organizing data (removing duplicates, handling missing values, standardizing formats)
-- Interpreting data and providing detailed insights about data quality and characteristics
-- Organizing files into folders for better data management
-- Executing SQL queries against databases (SELECT, INSERT, UPDATE, DELETE)
-- Saving and exporting processed data in various formats
-
-When working with data files:
-- You can download datasets from Kaggle using download_kaggle_dataset. The dataset identifier should be in format "username/dataset-name" (e.g., "c/titanic" or "username/titanic"). Downloaded files are automatically saved to kaggle_data/ directory
-- All datasets are located in the raw_data/ directory. When a user asks about a dataset, look for it in raw_data/
-- Kaggle datasets are saved in kaggle_data/ directory. To work with them, you may need to reference the full path (e.g., "kaggle_data/data.csv") or move them to raw_data/
-- You can reference datasets by just their filename (e.g., "data.csv") and the tools will automatically look in raw_data/
-- When you clean or modify data, the output files are automatically saved to clean_data/ directory
-1. If a user wants a dataset from Kaggle, use download_kaggle_dataset first to fetch it (saves to kaggle_data/)
-2. First read the dataset to understand its structure, columns, and data types
-3. Use interpret_data to get detailed insights about data quality, missing values, and characteristics
-4. If cleaning is needed, use clean_dataset to remove duplicates, handle missing values, and standardize formats (saves to clean_data/)
-5. Save cleaned or processed datasets using save_dataset (saves to clean_data/)
-6. Organize files into appropriate folders using organize_files for better organization
-
-When working with databases:
-- Use execute_query to run SQL queries against your database
-- The database connection URL should be set in the DATABASE_URL environment variable
-- Always be careful with write operations (INSERT, UPDATE, DELETE) and confirm before executing
-- For SELECT queries, format results clearly for easy interpretation
-
-Your goal is to help users efficiently work with large amounts of data, from initial analysis through cleaning, processing, and organization. Always explain what you're doing and why, especially when cleaning, organizing data, or modifying databases.
-"""
-
-
-# Create function schemas for all tools
-TOOLS = [
-    read_file,
-    read_csv,
-    read_excel,
-    analyze_dataset,
-    clean_dataset,
-    save_dataset,
-    interpret_data,
-    organize_files,
-    execute_query,
-    download_kaggle_dataset,
+# Convert custom functions to tools using function_tool
+custom_tools = [
+    function_tool(read_file),
+    function_tool(read_csv),
+    function_tool(read_excel),
+    function_tool(analyze_dataset),
+    function_tool(clean_dataset),
+    function_tool(save_dataset),
+    function_tool(interpret_data),
+    function_tool(organize_files),
+    function_tool(execute_query),
+    function_tool(download_kaggle_dataset),
 ]
 
-# Convert tools to OpenAI function calling format
-FUNCTIONS = {tool.__name__: tool for tool in TOOLS}
-FUNCTION_SCHEMAS = [get_function_schema(tool) for tool in TOOLS]
+agent = Agent(
+    
+    # Name of the agent
+    name = "Data Agent",
+    
+   # Model used by the agent
+   model = "gpt-4o-mini",
+   
+   # Tools used by the agent
+   tools=[
+       WebSearchTool(),
+   ] + custom_tools,
 
 
-def run_agent(user_input, messages):
-    """Run the agent with user input and return the response."""
-    # Add user message
-    messages.append({"role": "user", "content": user_input})
-    
-    # Handle multiple rounds of tool calls (max 10 to prevent infinite loops)
-    max_iterations = 10
-    iteration = 0
-    
-    while iteration < max_iterations:
-        iteration += 1
-        
-        # Call OpenAI API
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=messages,
-            tools=FUNCTION_SCHEMAS,
-            tool_choice="auto"
-        )
-        
-        # Handle the response
-        message = response.choices[0].message
-        messages.append(message)
-        
-        # If the model wants to call a function
-        if message.tool_calls:
-            for tool_call in message.tool_calls:
-                function_name = tool_call.function.name
-                function_args = json.loads(tool_call.function.arguments)
-                
-                # Call the function
-                try:
-                    function_to_call = FUNCTIONS[function_name]
-                    function_response = function_to_call(**function_args)
-                except Exception as e:
-                    function_response = f"Error calling {function_name}: {str(e)}"
-                
-                # Add function response to messages
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": str(function_response)
-                })
-        else:
-            # No more tool calls, return the final response
-            break
-    
-    return message.content, messages
+    # System instructions for the agent
+    instructions =
+    """
+    You're an expert data agent specialized in handling, processing, and analyzing large amounts of data. Your primary focus is on data operations.
+
+    Your core capabilities:
+    - Downloading datasets from Kaggle directly to raw_data/ directory
+    - Reading and analyzing datasets (CSV, Excel files, text files)
+    - Cleaning and organizing data (removing duplicates, handling missing values, standardizing formats)
+    - Interpreting data and providing detailed insights about data quality and characteristics
+    - Organizing files into folders for better data management
+    - Executing SQL queries against databases (SELECT, INSERT, UPDATE, DELETE)
+    - Saving and exporting processed data in various formats
+
+    When working with data files:
+    - You can download datasets from Kaggle using download_kaggle_dataset. The dataset identifier should be in format "username/dataset-name" (e.g., "c/titanic" or "username/titanic"). Downloaded files are automatically saved to kaggle_data/ directory
+    - All datasets are located in the raw_data/ directory. When a user asks about a dataset, look for it in raw_data/
+    - Kaggle datasets are saved in kaggle_data/ directory. To work with them, you may need to reference the full path (e.g., "kaggle_data/data.csv") or move them to raw_data/
+    - You can reference datasets by just their filename (e.g., "data.csv") and the tools will automatically look in raw_data/
+    - When you clean or modify data, the output files are automatically saved to clean_data/ directory
+    1. If a user wants a dataset from Kaggle, use download_kaggle_dataset first to fetch it (saves to kaggle_data/)
+    2. First read the dataset to understand its structure, columns, and data types
+    3. Use interpret_data to get detailed insights about data quality, missing values, and characteristics
+    4. If cleaning is needed, use clean_dataset to remove duplicates, handle missing values, and standardize formats (saves to clean_data/)
+    5. Save cleaned or processed datasets using save_dataset (saves to clean_data/)
+    6. Organize files into appropriate folders using organize_files for better organization
+
+    When working with databases:
+    - Use execute_query to run SQL queries against your database
+    - The database connection URL should be set in the DATABASE_URL environment variable
+    - Always be careful with write operations (INSERT, UPDATE, DELETE) and confirm before executing
+    - For SELECT queries, format results clearly for easy interpretation
+
+    Your goal is to help users efficiently work with large amounts of data, from initial analysis through cleaning, processing, and organization. Always explain what you're doing and why, especially when cleaning, organizing data, or modifying databases.
+    """
+
+)
 
 
-def repl_loop():
-    """REPL loop for interacting with the agent."""
-    messages = [{"role": "system", "content": SYSTEM_INSTRUCTIONS}]
+# main function
+# this is the main function that will be called to run the agent
+async def main():
+    # Sessions store conversation history so the agent remembers previous messages
+    session = SQLiteSession(session_id="example_session")
     
-    print("Data Agent - Ready to help with your data tasks!")
-    print("Type 'exit' or 'quit' to end the session.\n")
+    print("Type 'quit' or 'exit' to stop.\n")
     
+    # Interactive loop to ask questions
     while True:
         try:
-            user_input = input("You: ").strip()
-            
-            if not user_input:
-                continue
-            
-            if user_input.lower() in ['exit', 'quit']:
-                print("Goodbye!")
-                break
-            
-            response, messages = run_agent(user_input, messages)
-            print(f"\nAgent: {response}\n")
-            
-        except KeyboardInterrupt:
-            print("\n\nGoodbye!")
+            # Get user input
+            user_input = input(f"{agent.name}: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nSession ended")
             break
-        except Exception as e:
-            print(f"\nError: {e}\n")
+        
+        # Check if user wants to quit
+        # if the user inputs 'quit', 'exit', or 'q', the session will end
+        if user_input.lower() in ['quit', 'exit', 'q']:
+            print("Session ended")
+            break
+        
+        # Skip empty inputs
+        if not user_input:
+            continue
+        
+        # Run the agent with streaming (shows response as it's generated)
+        print("\nAgent: ", end="", flush=True)
+        result = Runner.run_streamed(agent, user_input, session=session)
+        
+        # Stream the response in real-time
+        async for event in result.stream_events():
+            if isinstance(event, RawResponsesStreamEvent):
+                if isinstance(event.data, ResponseTextDeltaEvent):
+                    print(event.data.delta, end="", flush=True)
+        
+        print("\n")  # Add newline after response
 
 
-# Launch the REPL loop
+
+
+# run the agent
 if __name__ == "__main__":
-    repl_loop()
-
-
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, EOFError):
+        print("\nSession ended")
+    
