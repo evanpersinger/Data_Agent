@@ -56,7 +56,7 @@ agent = Agent(
    # Model used by the agent
    model = "gpt-4o-mini",
    
-   # Tools used by the agent
+   # Tools used by the agent (plus custom tools)
    tools=[
        WebSearchTool(),
    ] + custom_tools,

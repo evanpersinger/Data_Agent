@@ -3,3 +3,4 @@ venv/
 clean_data/
 raw_data/
 kaggle.json
+__pycache__/

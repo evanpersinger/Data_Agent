@@ -7,7 +7,6 @@ import os
 import inspect
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
-from kaggle.api.kaggle_api_extended import KaggleApi
 
 load_dotenv()
 
@@ -392,6 +391,23 @@ def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
         A message indicating success and where files were saved
     """
     try:
+        # Lazy import to avoid authentication error on module load
+        try:
+            from kaggle.api.kaggle_api_extended import KaggleApi
+        except (OSError, IOError) as import_error:
+            if "kaggle.json" in str(import_error):
+                return f"Error: Kaggle authentication not configured. Please set up your Kaggle API credentials using one of these methods:\n\n" \
+                       f"Method 1 (Environment Variables - Recommended):\n" \
+                       f"1. Go to https://www.kaggle.com/settings and create an API token\n" \
+                       f"2. Add to your .env file:\n" \
+                       f"   KAGGLE_USERNAME=your_username\n" \
+                       f"   KAGGLE_KEY=your_api_key\n\n" \
+                       f"Method 2 (kaggle.json file):\n" \
+                       f"1. Go to https://www.kaggle.com/settings and create an API token\n" \
+                       f"2. Place kaggle.json in ~/.kaggle/ directory\n" \
+                       f"3. Set permissions: chmod 600 ~/.kaggle/kaggle.json"
+            raise
+        
         # Initialize Kaggle API
         api = KaggleApi()
         

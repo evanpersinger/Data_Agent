@@ -1,6 +1,6 @@
 # Data Agent
 
-An AI agent specialized in handling, processing, and analyzing large amounts of data. It can read datasets, clean messy data, execute database queries, interpret data insights, and organize your files.
+An AI agent specialized in handling, processing, and analyzing large amounts of data. Built with OpenAI's agentic framework, it can read datasets, clean messy data, execute database queries, interpret data insights, and organize your files.
 
 ## Features
 
@@ -71,7 +71,7 @@ KAGGLE_KEY=your_kaggle_api_key  # Optional: for Kaggle dataset downloads
 
 4. Run the agent:
 ```bash
-python agent.py
+python data_agent.py
 ```
 
 ## Usage
@@ -91,7 +91,7 @@ Once the agent is running, you can interact with it in the REPL. Example command
 
 ```
 data_agent/
-├── agent.py          # Data agent configuration and instructions
+├── data_agent.py     # Data agent configuration and instructions
 ├── agent_tools.py    # Data processing functions/tools the agent can use
 ├── requirements.txt  # Python dependencies
 ├── .env              # Environment variables (API keys) - NOT committed to git
@@ -104,8 +104,8 @@ data_agent/
 
 ## How It Works
 
-- **agent.py**: Contains the agent's configuration, instructions, and launches the REPL loop
-- **agent_tools.py**: Contains all the functions the agent can use (reading, cleaning, analyzing data, etc.)
+- **data_agent.py**: Contains the agent's configuration, instructions, and launches the REPL loop. Uses OpenAI's agentic framework (`openai-agents`) to create an intelligent agent that can use custom tools.
+- **agent_tools.py**: Contains all the functions the agent can use (reading, cleaning, analyzing data, etc.). These functions are converted to tools using `function_tool()` so the agent can call them automatically.
 
-The agent uses GPT-4O Mini to understand your requests and automatically calls the appropriate tools to help you work with your data.
+The agent uses GPT-4O Mini (via OpenAI's agentic framework) to understand your requests and automatically calls the appropriate tools to help you work with your data. The agent maintains conversation history using SQLite sessions, so it remembers previous interactions.
 
