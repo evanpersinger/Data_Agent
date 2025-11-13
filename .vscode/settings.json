@@ -1,10 +1,16 @@
 {
     "cSpell.words": [
         "agentic",
+        "creds",
+        "dotenv",
+        "kagglehub"
     ],
 
     "files.exclude": {
         "**/venv": true,
-        "**/__pycache__": true
+        "**/__pycache__": true,
+        "**/clean_data_example": true,
+        "**/kaggle_data_example": true,
+        "**/raw_data_example": true
     }
 }

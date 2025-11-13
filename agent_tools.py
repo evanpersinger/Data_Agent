@@ -4,11 +4,18 @@
 import pandas as pd
 from pathlib import Path
 import os
+import json
 import inspect
-from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
+from openai import OpenAI
 
+# Load environment variables from .env file
 load_dotenv()
+
+
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Base directory for file operations
 BASE_DIR = Path(__file__).parent
@@ -378,70 +385,195 @@ def execute_query(query: str, database_url: str = None) -> str:
         return f"Database error: {str(e)}"
 
 
+# search for Kaggle datasets
+def search_kaggle_datasets(search_term: str, max_results: int = 5) -> str:
+    """
+    Search for Kaggle datasets by name and return matching dataset identifiers.
+    
+    Args:
+        search_term: The name or keywords to search for (e.g., "titanic", "housing prices")
+        max_results: Maximum number of results to return (default: 5)
+    
+    Returns:
+        A formatted string with matching datasets and their identifiers
+    """
+    try:
+        # Check for credentials
+        kaggle_username = os.getenv("KAGGLE_USERNAME")
+        kaggle_key = os.getenv("KAGGLE_KEY") or os.getenv("KAGGLE_API_KEY")
+        
+        # If not in env vars, try loading from kaggle.json
+        if not kaggle_username or not kaggle_key:
+            kaggle_json_path = BASE_DIR / "kaggle.json"
+            if kaggle_json_path.exists():
+                try:
+                    with open(kaggle_json_path, 'r') as f:
+                        kaggle_creds = json.load(f)
+                        kaggle_username = kaggle_username or kaggle_creds.get("username", "")
+                        kaggle_key = kaggle_key or kaggle_creds.get("key", "")
+                except Exception:
+                    pass
+        
+        if not kaggle_username or not kaggle_key:
+            return "Error: Kaggle authentication not configured. Please set up your Kaggle API credentials."
+        
+        # Set environment variables
+        os.environ["KAGGLE_USERNAME"] = kaggle_username
+        os.environ["KAGGLE_KEY"] = kaggle_key
+        
+        # Use kaggle library for searching
+        try:
+            from kaggle.api.kaggle_api_extended import KaggleApi
+            api = KaggleApi()
+            api.authenticate()
+            
+            # Search for datasets
+            datasets = api.dataset_list(search=search_term, max_size=1000)
+            
+            if not datasets:
+                return f"No datasets found matching '{search_term}'. Try a different search term."
+            
+            # Format results
+            result = f"Found {len(datasets)} dataset(s) matching '{search_term}':\n\n"
+            for i, dataset in enumerate(datasets[:max_results], 1):
+                result += f"{i}. {dataset.ref}\n"
+                result += f"   Title: {dataset.title}\n"
+                result += f"   Downloads: {dataset.downloadCount:,}\n"
+                result += f"   Votes: {dataset.usabilityRating}\n\n"
+            
+            if len(datasets) > max_results:
+                result += f"... and {len(datasets) - max_results} more results. Use the full identifier (username/dataset-name) to download."
+            
+            return result
+            
+        except ImportError:
+            return "Error: kaggle library not installed. Install it with: pip install kaggle"
+        except Exception as e:
+            return f"Error searching datasets: {str(e)}"
+            
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
 # download dataset from Kaggle
 def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
     """
     Download a dataset from Kaggle and save it to the kaggle_data/ directory.
     
     Args:
-        dataset: Kaggle dataset identifier in format "username/dataset-name" (e.g., "titanic" or "username/titanic")
-        unzip: Whether to automatically unzip downloaded files (default: True)
+        dataset: Kaggle dataset identifier in format "username/dataset-name" (e.g., "heptapod/titanic").
+                 If just a name is provided (e.g., "titanic"), it will try common patterns like "c/dataset-name"
+                 for official Kaggle datasets. For better results, use search_kaggle_datasets first to find the exact identifier.
+        unzip: Whether to automatically unzip downloaded files (default: True, always unzipped with kagglehub)
     
     Returns:
         A message indicating success and where files were saved
     """
     try:
-        # Lazy import to avoid authentication error on module load
+        import shutil
+        
+        # Check for credentials before importing
+        # Support both KAGGLE_KEY and KAGGLE_API_KEY for compatibility
+        kaggle_username = os.getenv("KAGGLE_USERNAME")
+        kaggle_key = os.getenv("KAGGLE_KEY") or os.getenv("KAGGLE_API_KEY")
+        
+        # If not in env vars, try loading from kaggle.json in project root
+        if not kaggle_username or not kaggle_key:
+            kaggle_json_path = BASE_DIR / "kaggle.json"
+            if kaggle_json_path.exists():
+                try:
+                    with open(kaggle_json_path, 'r') as f:
+                        kaggle_creds = json.load(f)
+                        kaggle_username = kaggle_username or kaggle_creds.get("username", "")
+                        kaggle_key = kaggle_key or kaggle_creds.get("key", "")
+                except Exception:
+                    pass  # If we can't read it, continue with error message
+        
+        if not kaggle_username or not kaggle_key:
+            return f"Error: Kaggle authentication not configured. Please set up your Kaggle API credentials:\n\n" \
+                   f"1. Go to https://www.kaggle.com/settings and create an API token\n" \
+                   f"2. Add to your .env file:\n" \
+                   f"   KAGGLE_USERNAME=your_username\n" \
+                   f"   KAGGLE_KEY=your_api_key\n\n" \
+                   f"Current status:\n" \
+                   f"  KAGGLE_USERNAME: {'SET' if kaggle_username else 'NOT SET'}\n" \
+                   f"  KAGGLE_KEY: {'SET' if kaggle_key else 'NOT SET'}\n\n" \
+                   f"After adding to .env, restart the script."
+        
+        # Set environment variables explicitly for Kaggle library
+        os.environ["KAGGLE_USERNAME"] = kaggle_username
+        os.environ["KAGGLE_KEY"] = kaggle_key
+        
+        # Use kagglehub (newer, simpler API)
         try:
-            from kaggle.api.kaggle_api_extended import KaggleApi
-        except (OSError, IOError) as import_error:
-            if "kaggle.json" in str(import_error):
-                return f"Error: Kaggle authentication not configured. Please set up your Kaggle API credentials using one of these methods:\n\n" \
-                       f"Method 1 (Environment Variables - Recommended):\n" \
-                       f"1. Go to https://www.kaggle.com/settings and create an API token\n" \
-                       f"2. Add to your .env file:\n" \
-                       f"   KAGGLE_USERNAME=your_username\n" \
-                       f"   KAGGLE_KEY=your_api_key\n\n" \
-                       f"Method 2 (kaggle.json file):\n" \
-                       f"1. Go to https://www.kaggle.com/settings and create an API token\n" \
-                       f"2. Place kaggle.json in ~/.kaggle/ directory\n" \
-                       f"3. Set permissions: chmod 600 ~/.kaggle/kaggle.json"
-            raise
+            import kagglehub
+        except ImportError:
+            return f"Error: kagglehub library not installed. Install it with: pip install kagglehub"
         
-        # Initialize Kaggle API
-        api = KaggleApi()
+        # If dataset doesn't contain "/", search for it first to find the best match
+        original_dataset = dataset
+        result_prefix = ""  # Initialize empty, will be set if we search
+        if '/' not in dataset:
+            # Search for the dataset to find the best match
+            try:
+                from kaggle.api.kaggle_api_extended import KaggleApi
+                api = KaggleApi()
+                api.authenticate()
+                
+                # Search for datasets
+                search_results = api.dataset_list(search=dataset, max_size=10)
+                
+                if not search_results:
+                    return f"Error: No datasets found matching '{dataset}'. Please use search_kaggle_datasets('{dataset}') to find available datasets, or provide the full identifier in format 'username/dataset-name'."
+                
+                # Use the most popular dataset (highest download count) as the best match
+                best_match = max(search_results, key=lambda x: x.downloadCount)
+                dataset = best_match.ref
+                
+                # Inform user which dataset will be downloaded
+                result_prefix = f"Found multiple datasets matching '{original_dataset}'. Using the most popular: {dataset} ({best_match.title}, {best_match.downloadCount:,} downloads).\n\n"
+            except Exception as e:
+                # If search fails, return error asking for full identifier
+                return f"Error: Could not search for dataset '{original_dataset}'. Please provide the full identifier in format 'username/dataset-name' (e.g., 'heptapod/titanic'), or use search_kaggle_datasets('{original_dataset}') to find available options.\n\nError details: {str(e)}"
         
-        # Authenticate - checks for KAGGLE_USERNAME/KAGGLE_KEY env vars or ~/.kaggle/kaggle.json
-        api.authenticate()
-        
-        # Ensure kaggle_data directory exists
+        # Ensure kaggle_data directory exists (only if we haven't already)
         KAGGLE_DATA_DIR.mkdir(exist_ok=True)
         
-        # Download dataset to kaggle_data/
-        api.dataset_download_files(dataset, path=str(KAGGLE_DATA_DIR), unzip=unzip)
+        # Download dataset using kagglehub (downloads to cache, then we copy to kaggle_data/)
+        download_path = kagglehub.dataset_download(dataset)
         
-        # Get list of downloaded files
-        if unzip:
-            # If unzipped, list all files in kaggle_data/
-            downloaded_files = list(KAGGLE_DATA_DIR.glob("*"))
-            # Filter out directories
-            files = [f.name for f in downloaded_files if f.is_file()]
-        else:
-            # If not unzipped, look for zip files
-            files = [f.name for f in KAGGLE_DATA_DIR.glob("*.zip")]
+        # Copy files from download_path to kaggle_data/
+        download_path_obj = Path(download_path)
+        files_copied = []
         
-        if not files:
-            return f"Dataset '{dataset}' downloaded but no files found in kaggle_data/"
+        # Copy all files from the downloaded directory to kaggle_data/
+        for item in download_path_obj.iterdir():
+            if item.is_file():
+                dest = KAGGLE_DATA_DIR / item.name
+                shutil.copy2(item, dest)
+                files_copied.append(item.name)
+            elif item.is_dir():
+                # If there are subdirectories, copy them too
+                dest_dir = KAGGLE_DATA_DIR / item.name
+                shutil.copytree(item, dest_dir, dirs_exist_ok=True)
+                files_copied.append(item.name + "/")
         
-        result = f"Successfully downloaded dataset '{dataset}' to kaggle_data/\n"
-        result += f"Files downloaded: {', '.join(files[:10])}"  # Show first 10 files
-        if len(files) > 10:
-            result += f" (and {len(files) - 10} more files)"
+        if not files_copied:
+            return f"Dataset '{dataset}' downloaded but no files found in {download_path}"
+        
+        # Build result message (include prefix if we searched)
+        result = result_prefix + f"Successfully downloaded dataset '{dataset}' to kaggle_data/\n"
+        result += f"Files downloaded: {', '.join(files_copied[:10])}"  # Show first 10 files
+        if len(files_copied) > 10:
+            result += f" (and {len(files_copied) - 10} more files)"
         
         return result
         
     except Exception as e:
         error_msg = str(e)
+        # Print full error for debugging (can remove later)
+        print(f"DEBUG: Full error: {error_msg}", flush=True)
+        
         if "401" in error_msg or "Unauthorized" in error_msg:
             return f"Error: Kaggle authentication failed. Please set up your Kaggle API credentials using one of these methods:\n\n" \
                    f"Method 1 (Environment Variables - Recommended):\n" \
@@ -453,10 +585,23 @@ def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
                    f"1. Go to https://www.kaggle.com/settings and create an API token\n" \
                    f"2. Place kaggle.json in ~/.kaggle/ directory\n" \
                    f"3. Set permissions: chmod 600 ~/.kaggle/kaggle.json"
+        elif "403" in error_msg or "Forbidden" in error_msg:
+            return f"Error: Permission denied (403 Forbidden) for dataset '{dataset}'. This usually means:\n\n" \
+                   f"1. You need to accept the dataset's terms on Kaggle first:\n" \
+                   f"   - Go to https://www.kaggle.com/datasets/{dataset if '/' in dataset else 'username/' + dataset}\n" \
+                   f"   - Click 'New Notebook' or 'Download' to accept the terms\n" \
+                   f"   - Then try downloading again\n\n" \
+                   f"2. Make sure the dataset identifier is correct (format: 'username/dataset-name')\n" \
+                   f"   Example: 'mmeyer/nfl-stats-2012-2024' instead of 'NFL Stats 2012-2024'"
         elif "404" in error_msg or "not found" in error_msg.lower():
-            return f"Error: Dataset '{dataset}' not found. Make sure the dataset name is correct (format: 'username/dataset-name')"
+            return f"Error: Dataset '{dataset}' not found. Make sure the dataset name is correct (format: 'username/dataset-name')\n" \
+                   f"Example: 'mmeyer/nfl-stats-2012-2024' instead of 'NFL Stats 2012-2024'"
         else:
-            return f"Error downloading dataset '{dataset}': {error_msg}"
+            return f"Error downloading dataset '{dataset}': {error_msg}\n\n" \
+                   f"Tip: Make sure the dataset identifier is in format 'username/dataset-name' (e.g., 'mmeyer/nfl-stats-2012-2024')"
+
+
+
 
 
 def get_function_schema(func):

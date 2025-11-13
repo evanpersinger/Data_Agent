@@ -107,6 +107,7 @@ jsonschema-specifications==2025.4.1
 jupyter-core==5.9.1
 jupytext==1.18.1
 kaggle>=1.6.16
+kagglehub>=0.3.13
 kiwisolver==1.4.8
 langsmith==0.3.45
 litellm==1.74.7

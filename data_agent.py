@@ -5,7 +5,11 @@
 import os
 import json
 import time
+from dotenv import load_dotenv
 from openai import OpenAI
+
+# Load environment variables from .env file
+load_dotenv()
 from agents import Agent, Runner, SQLiteSession, WebSearchTool, function_tool, ModelSettings
 from agents.stream_events import RawResponsesStreamEvent
 from agents.tracing import set_tracing_disabled
@@ -24,6 +28,7 @@ from agent_tools import (
     interpret_data,
     organize_files,
     execute_query,
+    search_kaggle_datasets,
     download_kaggle_dataset,
     get_function_schema
 )
@@ -45,6 +50,7 @@ custom_tools = [
     function_tool(interpret_data),
     function_tool(organize_files),
     function_tool(execute_query),
+    function_tool(search_kaggle_datasets),
     function_tool(download_kaggle_dataset),
 ]
 
@@ -77,7 +83,8 @@ agent = Agent(
     - Saving and exporting processed data in various formats
 
     When working with data files:
-    - You can download datasets from Kaggle using download_kaggle_dataset. The dataset identifier should be in format "username/dataset-name" (e.g., "c/titanic" or "username/titanic"). Downloaded files are automatically saved to kaggle_data/ directory
+    - You can search for Kaggle datasets using search_kaggle_datasets(search_term) to find datasets by name. This returns the exact identifier needed.
+    - You can download datasets from Kaggle using download_kaggle_dataset. If the user provides just a name (e.g., "titanic"), try common patterns first. For best results, use search_kaggle_datasets first to find the exact identifier in format "username/dataset-name" (e.g., "heptapod/titanic"). Downloaded files are automatically saved to kaggle_data/ directory
     - All datasets are located in the raw_data/ directory. When a user asks about a dataset, look for it in raw_data/
     - Kaggle datasets are saved in kaggle_data/ directory. To work with them, you may need to reference the full path (e.g., "kaggle_data/data.csv") or move them to raw_data/
     - You can reference datasets by just their filename (e.g., "data.csv") and the tools will automatically look in raw_data/
@@ -113,7 +120,7 @@ async def main():
     while True:
         try:
             # Get user input
-            user_input = input(f"{agent.name}: ").strip()
+            user_input = input("> ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nSession ended")
             break
@@ -128,8 +135,12 @@ async def main():
         if not user_input:
             continue
         
+        # Print box format
+        print("\nData Agent:")
+        print("-----------------")
+        # print("Agent: ", end="", flush=True)
+        
         # Run the agent with streaming (shows response as it's generated)
-        print("\nAgent: ", end="", flush=True)
         result = Runner.run_streamed(agent, user_input, session=session)
         
         # Stream the response in real-time
@@ -138,7 +149,7 @@ async def main():
                 if isinstance(event.data, ResponseTextDeltaEvent):
                     print(event.data.delta, end="", flush=True)
         
-        print("\n")  # Add newline after response
+        print("\n--------------------\n")  # Close box and add spacing
 
 
 
