@@ -49,11 +49,9 @@ def read_csv(filename: str) -> str:
         file_path = BASE_DIR / filename
     try:
         df = pd.read_csv(file_path)
-        summary = f"CSV file: {filename}\n"
-        summary += f"Shape: {df.shape[0]} rows, {df.shape[1]} columns\n"
-        summary += f"Columns: {', '.join(df.columns.tolist())}\n\n"
-        summary += "First 5 rows:\n"
-        summary += df.head().to_string()
+        summary = f"### Dataset Overview\n"
+        summary += f"- **Total Rows:** {df.shape[0]:,}\n"
+        summary += f"- **Total Columns:** {df.shape[1]}"
         return summary
     except Exception as e:
         return f"Could not read CSV {file_path}: {e}"
@@ -73,11 +71,9 @@ def read_excel(filename: str, sheet_name: str = None) -> str:
             df = pd.read_excel(file_path, sheet_name=sheet_name)
         else:
             df = pd.read_excel(file_path)
-        summary = f"Excel file: {filename}\n"
-        summary += f"Shape: {df.shape[0]} rows, {df.shape[1]} columns\n"
-        summary += f"Columns: {', '.join(df.columns.tolist())}\n\n"
-        summary += "First 5 rows:\n"
-        summary += df.head().to_string()
+        summary = f"### Dataset Overview\n"
+        summary += f"- **Total Rows:** {df.shape[0]:,}\n"
+        summary += f"- **Total Columns:** {df.shape[1]}"
         return summary
     except Exception as e:
         return f"Could not read Excel {file_path}: {e}"
@@ -427,8 +423,57 @@ def search_kaggle_datasets(search_term: str, max_results: int = 5) -> str:
             api = KaggleApi()
             api.authenticate()
             
-            # Search for datasets
-            datasets = api.dataset_list(search=search_term, max_size=1000)
+            # Search for datasets - try multiple strategies since Kaggle search is literal
+            # Strategy 1: Try the full search term
+            datasets = api.dataset_list(search=search_term, max_size=1000, sort_by='hottest')
+            
+            # Strategy 2: If no results, try intelligent keyword combinations
+            if not datasets:
+                # Extract meaningful keywords (remove stop words and short words)
+                stop_words = {'data', 'dataset', 'datasets', 'the', 'a', 'an', 'for', 'and', 'or', 'of', 'in', 'on', 'at', 'to', 'is', 'are', 'was', 'were'}
+                keywords = [w.strip('.,!?;:') for w in search_term.lower().split() 
+                           if len(w.strip('.,!?;:')) > 2 and w.strip('.,!?;:') not in stop_words]
+                
+                if keywords:
+                    # Collect all results from different search strategies
+                    all_results = []
+                    seen_refs = set()
+                    
+                    # Strategy 2a: Try all 2-word combinations of keywords
+                    if len(keywords) >= 2:
+                        from itertools import combinations
+                        for combo in combinations(keywords, 2):
+                            combo_search = ' '.join(combo)
+                            results = api.dataset_list(search=combo_search, max_size=100, sort_by='hottest')
+                            for result in results:
+                                if result.ref not in seen_refs:
+                                    all_results.append(result)
+                                    seen_refs.add(result.ref)
+                    
+                    # Strategy 2b: Try all 3-word combinations if we have enough keywords
+                    if len(keywords) >= 3 and len(all_results) < 10:
+                        for combo in combinations(keywords, 3):
+                            combo_search = ' '.join(combo)
+                            results = api.dataset_list(search=combo_search, max_size=50, sort_by='hottest')
+                            for result in results:
+                                if result.ref not in seen_refs:
+                                    all_results.append(result)
+                                    seen_refs.add(result.ref)
+                    
+                    # Strategy 2c: Try individual important keywords (prioritize longer/more specific ones)
+                    if len(all_results) < 5:
+                        # Sort keywords by length (longer = more specific)
+                        sorted_keywords = sorted(keywords, key=len, reverse=True)
+                        for keyword in sorted_keywords[:3]:  # Try top 3 most specific keywords
+                            results = api.dataset_list(search=keyword, max_size=50, sort_by='hottest')
+                            for result in results:
+                                if result.ref not in seen_refs:
+                                    all_results.append(result)
+                                    seen_refs.add(result.ref)
+                    
+                    # Use collected results if we found any
+                    if all_results:
+                        datasets = all_results
             
             if not datasets:
                 return f"No datasets found matching '{search_term}'. Try a different search term."
@@ -438,8 +483,15 @@ def search_kaggle_datasets(search_term: str, max_results: int = 5) -> str:
             for i, dataset in enumerate(datasets[:max_results], 1):
                 result += f"{i}. {dataset.ref}\n"
                 result += f"   Title: {dataset.title}\n"
-                result += f"   Downloads: {dataset.downloadCount:,}\n"
-                result += f"   Votes: {dataset.usabilityRating}\n\n"
+                # Use the correct attribute name (download_count)
+                if hasattr(dataset, 'download_count') and dataset.download_count:
+                    result += f"   Downloads: {dataset.download_count:,}\n"
+                if hasattr(dataset, 'usability_rating') and dataset.usability_rating:
+                    result += f"   Rating: {dataset.usability_rating:.2f}\n"
+                if hasattr(dataset, 'description') and dataset.description:
+                    desc = dataset.description[:100] + "..." if len(dataset.description) > 100 else dataset.description
+                    result += f"   Description: {desc}\n"
+                result += "\n"
             
             if len(datasets) > max_results:
                 result += f"... and {len(datasets) - max_results} more results. Use the full identifier (username/dataset-name) to download."
@@ -458,16 +510,22 @@ def search_kaggle_datasets(search_term: str, max_results: int = 5) -> str:
 # download dataset from Kaggle
 def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
     """
+    MANDATORY: Use this function whenever the user asks to download a dataset from Kaggle.
+    This function automatically searches Kaggle and downloads the best matching dataset.
+    
     Download a dataset from Kaggle and save it to the kaggle_data/ directory.
+    The function automatically searches Kaggle if you provide just a dataset name (e.g., "titanic" or "Clash Royal Cards data").
+    It finds the most popular matching dataset and downloads it.
     
     Args:
-        dataset: Kaggle dataset identifier in format "username/dataset-name" (e.g., "heptapod/titanic").
-                 If just a name is provided (e.g., "titanic"), it will try common patterns like "c/dataset-name"
-                 for official Kaggle datasets. For better results, use search_kaggle_datasets first to find the exact identifier.
+        dataset: Dataset name or identifier. Can be:
+                 - Just a name (e.g., "titanic", "Clash Royal Cards data") - function will search and find best match
+                 - Full identifier in format "username/dataset-name" (e.g., "heptapod/titanic") - downloads directly
         unzip: Whether to automatically unzip downloaded files (default: True, always unzipped with kagglehub)
     
     Returns:
-        A message indicating success and where files were saved
+        A message indicating success and where files were saved, or an error message if dataset not found.
+        The function handles all searching automatically - you don't need to search first.
     """
     try:
         import shutil
@@ -520,21 +578,148 @@ def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
                 api = KaggleApi()
                 api.authenticate()
                 
-                # Search for datasets
-                search_results = api.dataset_list(search=dataset, max_size=10)
+                # Search for datasets - try multiple search strategies
+                # Kaggle search is literal, so we need to try different keyword combinations
+                search_results = api.dataset_list(search=dataset, max_size=1000, sort_by='hottest')
+                
+                # Extract meaningful keywords for flexible searching
+                stop_words = {'data', 'dataset', 'datasets', 'cards', 'card', 'the', 'a', 'an', 'latest', 'for', 'and', 'or', 'of', 'in', 'on', 'at', 'to', 'is', 'are', 'was', 'were'}
+                keywords = [w.strip('.,!?;:') for w in dataset.lower().split() 
+                           if len(w.strip('.,!?;:')) > 2 and w.strip('.,!?;:') not in stop_words]
+                
+                # If no results, try more flexible searches
+                is_fallback_search = False
+                if not search_results and keywords:
+                    # Collect all results from different search strategies
+                    all_results = []
+                    seen_refs = set()
+                    
+                    # Strategy 1: Try all 2-word combinations of keywords
+                    if len(keywords) >= 2:
+                        from itertools import combinations
+                        for combo in combinations(keywords, 2):
+                            combo_search = ' '.join(combo)
+                            results = api.dataset_list(search=combo_search, max_size=100, sort_by='hottest')
+                            for result in results:
+                                if result.ref not in seen_refs:
+                                    all_results.append(result)
+                                    seen_refs.add(result.ref)
+                    
+                    # Strategy 2: Try all 3-word combinations if we have enough keywords
+                    if len(keywords) >= 3 and len(all_results) < 20:
+                        for combo in combinations(keywords, 3):
+                            combo_search = ' '.join(combo)
+                            results = api.dataset_list(search=combo_search, max_size=50, sort_by='hottest')
+                            for result in results:
+                                if result.ref not in seen_refs:
+                                    all_results.append(result)
+                                    seen_refs.add(result.ref)
+                    
+                    # Strategy 3: Try individual important keywords (prioritize longer/more specific ones)
+                    if len(all_results) < 10:
+                        # Sort keywords by length (longer = more specific)
+                        sorted_keywords = sorted(keywords, key=len, reverse=True)
+                        for keyword in sorted_keywords[:3]:  # Try top 3 most specific keywords
+                            results = api.dataset_list(search=keyword, max_size=50, sort_by='hottest')
+                            for result in results:
+                                if result.ref not in seen_refs:
+                                    all_results.append(result)
+                                    seen_refs.add(result.ref)
+                            if len(all_results) >= 20:
+                                break
+                    
+                    # Use collected results if we found any
+                    if all_results:
+                        search_results = all_results
+                        # Mark as fallback if we only got results from single keywords
+                        if len(keywords) > 1 and len([r for r in all_results if any(kw in r.title.lower() or kw in r.ref.lower() for kw in keywords)]) < len(all_results) * 0.3:
+                            is_fallback_search = True
+                    elif keywords:
+                        # Last resort: try just the first (most specific) keyword
+                        first_word = sorted(keywords, key=len, reverse=True)[0]
+                        search_results = api.dataset_list(search=first_word, max_size=1000, sort_by='hottest')
+                        is_fallback_search = True
                 
                 if not search_results:
-                    return f"Error: No datasets found matching '{dataset}'. Please use search_kaggle_datasets('{dataset}') to find available datasets, or provide the full identifier in format 'username/dataset-name'."
+                    return f"Error: No datasets found matching '{dataset}'. Please use search_kaggle_datasets('{dataset}') to see all available options, or provide the full identifier in format 'username/dataset-name'."
                 
-                # Use the most popular dataset (highest download count) as the best match
-                best_match = max(search_results, key=lambda x: x.downloadCount)
+                # Filter results to find the best match - prioritize results that contain search keywords
+                original_lower = original_dataset.lower()
+                search_keywords = [w for w in original_lower.split() 
+                                 if len(w) > 2 and w not in ['data', 'dataset', 'datasets', 'the', 'a', 'an', 'for', 'and', 'or']]
+                
+                # Score each result based on how many keywords match in title/ref/description/tags
+                scored_results = []
+                for result in search_results:
+                    title_lower = result.title.lower()
+                    ref_lower = result.ref.lower()
+                    description_lower = (result.description or "").lower()
+                    
+                    # Check tags too
+                    tags_text = ""
+                    if hasattr(result, 'tags') and result.tags:
+                        if isinstance(result.tags, list):
+                            tags_text = ' '.join([str(tag.get('name', '')) if isinstance(tag, dict) else str(tag) for tag in result.tags]).lower()
+                        else:
+                            tags_text = str(result.tags).lower()
+                    
+                    # Count keyword matches in multiple fields (weighted)
+                    title_matches = sum(1 for keyword in search_keywords if keyword in title_lower)
+                    ref_matches = sum(1 for keyword in search_keywords if keyword in ref_lower)
+                    desc_matches = sum(1 for keyword in search_keywords if keyword in description_lower)
+                    tag_matches = sum(1 for keyword in search_keywords if keyword in tags_text)
+                    
+                    # Weight: title and ref are most important, then description, then tags
+                    total_matches = (title_matches * 3) + (ref_matches * 2) + desc_matches + (tag_matches * 0.5)
+                    
+                    scored_results.append((total_matches, result))
+                
+                # Sort by match score (descending), then by download count if available
+                scored_results.sort(key=lambda x: (
+                    -x[0],  # More matches first
+                    -(getattr(x[1], 'download_count', 0) or 0)  # Then by popularity
+                ), reverse=False)
+                
+                best_match = scored_results[0][1] if scored_results else search_results[0]
+                match_score = scored_results[0][0] if scored_results else 0
+                downloads = getattr(best_match, 'download_count', 'unknown')
+                
                 dataset = best_match.ref
                 
-                # Inform user which dataset will be downloaded
-                result_prefix = f"Found multiple datasets matching '{original_dataset}'. Using the most popular: {dataset} ({best_match.title}, {best_match.downloadCount:,} downloads).\n\n"
+                # Safety check: if match quality is too low, don't download - return error instead
+                # Since we're using weighted scores, convert back to approximate keyword count
+                # The weighted score is roughly: title_matches*3 + ref_matches*2 + desc + tags*0.5
+                # For a good match, we want at least 2-3 keywords in title/ref
+                # If this was a fallback search (only first word), be even stricter
+                if is_fallback_search:
+                    min_required_score = max(4.0, len(search_keywords) * 1.5)  # Require higher score for fallback
+                else:
+                    min_required_score = max(3.0, len(search_keywords) * 1.0)  # Require at least 1 keyword match in title/ref
+                if match_score < min_required_score:
+                    return f"Error: No good matches found for '{original_dataset}'. The closest result was '{best_match.title}' ({dataset}) but it only matched {match_score}/{len(search_keywords)} keywords and doesn't seem related.\n\n" \
+                           f"Please try:\n" \
+                           f"1. Use search_kaggle_datasets('{original_dataset}') to see all available options\n" \
+                           f"2. Provide the full dataset identifier in format 'username/dataset-name'\n" \
+                           f"3. Try a different search term"
+                
+                # Warn if the match seems weak but still proceed (less than 70% match)
+                if match_score < len(search_keywords) * 0.7:
+                    result_prefix = f"WARNING: Found dataset '{dataset}' ({best_match.title}) but it may not match your search '{original_dataset}' perfectly. Only {match_score}/{len(search_keywords)} keywords matched. Proceeding with download...\n\n"
+                else:
+                    # Inform user which dataset will be downloaded
+                    if downloads != 'unknown':
+                        result_prefix = f"Found multiple datasets matching '{original_dataset}'. Using the best match: {dataset} ({best_match.title}, {downloads:,} downloads).\n\n"
+                    else:
+                        result_prefix = f"Found multiple datasets matching '{original_dataset}'. Using: {dataset} ({best_match.title}).\n\n"
             except Exception as e:
+                error_str = str(e)
                 # If search fails, return error asking for full identifier
-                return f"Error: Could not search for dataset '{original_dataset}'. Please provide the full identifier in format 'username/dataset-name' (e.g., 'heptapod/titanic'), or use search_kaggle_datasets('{original_dataset}') to find available options.\n\nError details: {str(e)}"
+                # Include the actual error for debugging
+                return f"Error searching for dataset '{original_dataset}': {error_str}\n\n" \
+                       f"Please try:\n" \
+                       f"1. Use search_kaggle_datasets('{original_dataset}') to see available datasets\n" \
+                       f"2. Provide the full identifier in format 'username/dataset-name' (e.g., 'heptapod/titanic')\n" \
+                       f"3. Check your Kaggle credentials are set up correctly"
         
         # Ensure kaggle_data directory exists (only if we haven't already)
         KAGGLE_DATA_DIR.mkdir(exist_ok=True)

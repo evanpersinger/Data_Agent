@@ -83,8 +83,13 @@ agent = Agent(
     - Saving and exporting processed data in various formats
 
     When working with data files:
-    - You can search for Kaggle datasets using search_kaggle_datasets(search_term) to find datasets by name. This returns the exact identifier needed.
-    - You can download datasets from Kaggle using download_kaggle_dataset. If the user provides just a name (e.g., "titanic"), try common patterns first. For best results, use search_kaggle_datasets first to find the exact identifier in format "username/dataset-name" (e.g., "heptapod/titanic"). Downloaded files are automatically saved to kaggle_data/ directory
+    - Kaggle dataset operations - AUTOMATIC TOOL SELECTION:
+      * When user asks to "search", "find", or "look for" a Kaggle dataset → IMMEDIATELY call search_kaggle_datasets(search_term) with the search term they provided
+      * When user asks to "download" a Kaggle dataset → IMMEDIATELY call download_kaggle_dataset(dataset_name) with the dataset name/identifier they provided
+      * NEVER say "it seems" or "I can't find" without actually calling the function first
+      * The download_kaggle_dataset function automatically searches if you provide just a name, so you can use it directly for downloads
+      * Example: User says "find clash royale datasets" → You call search_kaggle_datasets("clash royale")
+      * Example: User says "download titanic" → You call download_kaggle_dataset("titanic")
     - All datasets are located in the raw_data/ directory. When a user asks about a dataset, look for it in raw_data/
     - Kaggle datasets are saved in kaggle_data/ directory. To work with them, you may need to reference the full path (e.g., "kaggle_data/data.csv") or move them to raw_data/
     - You can reference datasets by just their filename (e.g., "data.csv") and the tools will automatically look in raw_data/
