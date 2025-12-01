@@ -686,6 +686,9 @@ def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
                 
                 dataset = best_match.ref
                 
+                # Check dataset size before downloading
+                dataset_size_bytes = getattr(best_match, 'total_bytes', None)
+                
                 # Safety check: if match quality is too low, don't download - return error instead
                 # Since we're using weighted scores, convert back to approximate keyword count
                 # The weighted score is roughly: title_matches*3 + ref_matches*2 + desc + tags*0.5
@@ -721,6 +724,38 @@ def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
                        f"2. Provide the full identifier in format 'username/dataset-name' (e.g., 'heptapod/titanic')\n" \
                        f"3. Check your Kaggle credentials are set up correctly"
         
+        # Check dataset size before downloading
+        max_size_mb = 500  # Default limit: 500MB
+        max_size_bytes = max_size_mb * 1024 * 1024
+        
+        # Try to get dataset size from API if we don't have it from search
+        if 'dataset_size_bytes' not in locals() or dataset_size_bytes is None:
+            dataset_size_bytes = None
+            if '/' in dataset:
+                try:
+                    from kaggle.api.kaggle_api_extended import KaggleApi
+                    api = KaggleApi()
+                    api.authenticate()
+                    # Get dataset metadata by searching for the exact ref
+                    dataset_info = api.dataset_list(search=dataset.split('/')[1], user=dataset.split('/')[0])
+                    if dataset_info:
+                        for ds in dataset_info:
+                            if ds.ref == dataset:
+                                dataset_size_bytes = getattr(ds, 'total_bytes', None)
+                                break
+                except:
+                    pass  # If we can't get size, continue with download but check after
+        
+        # Check size before downloading (if we have size info)
+        if dataset_size_bytes and dataset_size_bytes > max_size_bytes:
+            size_mb = dataset_size_bytes / (1024 * 1024)
+            size_gb = size_mb / 1024
+            return f"Error: Dataset '{dataset}' is too large ({size_gb:.2f} GB / {size_mb:.1f} MB). Maximum allowed size is {max_size_mb} MB.\n\n" \
+                   f"If you need to download this large dataset, you can:\n" \
+                   f"1. Increase the size limit in the code (edit max_size_mb in download_kaggle_dataset function)\n" \
+                   f"2. Download it manually from Kaggle\n" \
+                   f"3. Use a different, smaller dataset"
+        
         # Ensure kaggle_data directory exists (only if we haven't already)
         KAGGLE_DATA_DIR.mkdir(exist_ok=True)
         
@@ -731,14 +766,45 @@ def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
         download_path_obj = Path(download_path)
         files_copied = []
         
-        # Copy all files from the downloaded directory to kaggle_data/
+        # Check actual downloaded size and copy files
+        total_size = 0
         for item in download_path_obj.iterdir():
             if item.is_file():
+                file_size = item.stat().st_size
+                total_size += file_size
+                # Check size before copying
+                if total_size > max_size_bytes:
+                    # Clean up: remove any files we already copied
+                    for copied_file in files_copied:
+                        copied_path = KAGGLE_DATA_DIR / copied_file
+                        if copied_path.exists():
+                            if copied_path.is_file():
+                                copied_path.unlink()
+                            else:
+                                shutil.rmtree(copied_path)
+                    size_mb = total_size / (1024 * 1024)
+                    return f"Error: Dataset '{dataset}' is too large ({size_mb:.1f} MB downloaded so far). Maximum allowed size is {max_size_mb} MB.\n\n" \
+                           f"Download stopped to prevent using too much disk space."
                 dest = KAGGLE_DATA_DIR / item.name
                 shutil.copy2(item, dest)
                 files_copied.append(item.name)
             elif item.is_dir():
-                # If there are subdirectories, copy them too
+                # Calculate directory size
+                dir_size = sum(f.stat().st_size for f in item.rglob('*') if f.is_file())
+                total_size += dir_size
+                # Check size before copying
+                if total_size > max_size_bytes:
+                    # Clean up: remove any files we already copied
+                    for copied_file in files_copied:
+                        copied_path = KAGGLE_DATA_DIR / copied_file
+                        if copied_path.exists():
+                            if copied_path.is_file():
+                                copied_path.unlink()
+                            else:
+                                shutil.rmtree(copied_path)
+                    size_mb = total_size / (1024 * 1024)
+                    return f"Error: Dataset '{dataset}' is too large ({size_mb:.1f} MB). Maximum allowed size is {max_size_mb} MB.\n\n" \
+                           f"Download stopped to prevent using too much disk space."
                 dest_dir = KAGGLE_DATA_DIR / item.name
                 shutil.copytree(item, dest_dir, dirs_exist_ok=True)
                 files_copied.append(item.name + "/")
@@ -746,11 +812,18 @@ def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
         if not files_copied:
             return f"Dataset '{dataset}' downloaded but no files found in {download_path}"
         
+        # Warn if dataset is large (but still downloaded)
+        final_size_mb = total_size / (1024 * 1024)
+        size_warning = ""
+        if final_size_mb > 100:  # Warn if over 100MB
+            size_warning = f"\n⚠️  Note: This dataset is {final_size_mb:.1f} MB in size."
+        
         # Build result message (include prefix if we searched)
         result = result_prefix + f"Successfully downloaded dataset '{dataset}' to kaggle_data/\n"
         result += f"Files downloaded: {', '.join(files_copied[:10])}"  # Show first 10 files
         if len(files_copied) > 10:
             result += f" (and {len(files_copied) - 10} more files)"
+        result += size_warning
         
         return result
         
