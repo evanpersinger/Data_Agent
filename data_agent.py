@@ -19,6 +19,7 @@ import asyncio
 
 # import tools from agent_tools.py
 from agent_tools import (
+    list_files,
     read_file,
     read_csv,
     read_excel,
@@ -41,6 +42,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Convert custom functions to tools using function_tool
 custom_tools = [
+    function_tool(list_files),
     function_tool(read_file),
     function_tool(read_csv),
     function_tool(read_excel),
@@ -74,6 +76,7 @@ agent = Agent(
     You're an expert data agent specialized in handling, processing, and analyzing large amounts of data. Your primary focus is on data operations.
 
     Your core capabilities:
+    - Listing available files across raw_data/, clean_data/, and kaggle_data/ directories
     - Downloading datasets from Kaggle directly to raw_data/ directory
     - Reading and analyzing datasets (CSV, Excel files, text files)
     - Cleaning and organizing data (removing duplicates, handling missing values, standardizing formats)
@@ -83,6 +86,7 @@ agent = Agent(
     - Saving and exporting processed data in various formats
 
     When working with data files:
+    - Use list_files() to see what files are available before referencing them. If a user asks "what files do I have" or "what datasets are available", call list_files() immediately.
     - Kaggle dataset operations - AUTOMATIC TOOL SELECTION:
       * When user asks to "search", "find", or "look for" a Kaggle dataset → IMMEDIATELY call search_kaggle_datasets(search_term) with the search term they provided
       * When user asks to "download" a Kaggle dataset → IMMEDIATELY call download_kaggle_dataset(dataset_name) with the dataset name/identifier they provided

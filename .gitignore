@@ -2,6 +2,7 @@
 venv/
 .env
 __pycache__/
+issues.txt
 
 # IDE & Editor
 .vscode/

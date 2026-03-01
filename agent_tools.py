@@ -28,6 +28,50 @@ CLEAN_DATA_DIR.mkdir(exist_ok=True)
 KAGGLE_DATA_DIR.mkdir(exist_ok=True)
 
 
+# list files in data directories
+def list_files(directory: str = "all") -> str:
+    """
+    List files available in the data directories.
+
+    Args:
+        directory: Which directory to list. Options:
+                   "raw_data"    - files in raw_data/
+                   "clean_data"  - files in clean_data/
+                   "kaggle_data" - files in kaggle_data/
+                   "all"         - all three directories (default)
+    """
+    dirs = {
+        "raw_data": RAW_DATA_DIR,
+        "clean_data": CLEAN_DATA_DIR,
+        "kaggle_data": KAGGLE_DATA_DIR,
+    }
+
+    if directory != "all" and directory not in dirs:
+        return f"Unknown directory '{directory}'. Choose from: raw_data, clean_data, kaggle_data, all"
+
+    targets = dirs if directory == "all" else {directory: dirs[directory]}
+    output = ""
+
+    for name, path in targets.items():
+        output += f"{name}/\n"
+        if not path.exists():
+            output += "  (directory does not exist)\n"
+            continue
+        files = sorted(path.iterdir())
+        if not files:
+            output += "  (empty)\n"
+        else:
+            for f in files:
+                if f.is_file():
+                    size_kb = f.stat().st_size / 1024
+                    output += f"  {f.name}  ({size_kb:.1f} KB)\n"
+                elif f.is_dir():
+                    output += f"  {f.name}/  (folder)\n"
+        output += "\n"
+
+    return output.strip()
+
+
 # read content of a text file
 def read_file(filename: str) -> str:
     file_path = BASE_DIR / filename
