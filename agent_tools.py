@@ -22,10 +22,12 @@ BASE_DIR = Path(__file__).parent
 RAW_DATA_DIR = BASE_DIR / "raw_data"
 CLEAN_DATA_DIR = BASE_DIR / "clean_data"
 KAGGLE_DATA_DIR = BASE_DIR / "kaggle_data"
+PLOTS_DIR = BASE_DIR / "plots"
 
 # Ensure directories exist
 CLEAN_DATA_DIR.mkdir(exist_ok=True)
 KAGGLE_DATA_DIR.mkdir(exist_ok=True)
+PLOTS_DIR.mkdir(exist_ok=True)
 
 
 # list files in data directories
@@ -904,6 +906,138 @@ def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
 
 
 
+
+
+def plot_data(
+    filename: str,
+    chart_type: str,
+    x_column: str,
+    y_column: str = None,
+    title: str = None,
+    output_filename: str = None,
+) -> str:
+    """
+    Generate a chart from a dataset and save it as a PNG image to the plots/ directory.
+
+    Args:
+        filename: Dataset file to plot (looks in raw_data/, clean_data/, or kaggle_data/)
+        chart_type: Type of chart - "bar", "line", "scatter", "histogram", "pie"
+        x_column: Column to use for the x-axis (or the value column for histogram/pie)
+        y_column: Column to use for the y-axis (not needed for histogram or pie)
+        title: Chart title. If not provided, one is generated automatically.
+        output_filename: Name of the output PNG file. If not provided, one is generated automatically.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    # Resolve file path - search across all data directories
+    search_dirs = [RAW_DATA_DIR, CLEAN_DATA_DIR, KAGGLE_DATA_DIR, BASE_DIR]
+    file_path = None
+    if "/" in filename or "\\" in filename:
+        file_path = BASE_DIR / filename
+    else:
+        for d in search_dirs:
+            candidate = d / filename
+            if candidate.exists():
+                file_path = candidate
+                break
+
+    if file_path is None or not file_path.exists():
+        return f"File '{filename}' not found. Checked raw_data/, clean_data/, kaggle_data/."
+
+    try:
+        if filename.endswith(".csv"):
+            df = pd.read_csv(file_path)
+        elif filename.endswith((".xlsx", ".xls")):
+            df = pd.read_excel(file_path)
+        else:
+            return "Unsupported file type. Use CSV or Excel files."
+    except Exception as e:
+        return f"Could not read file: {e}"
+
+    # Validate columns
+    if x_column not in df.columns:
+        return f"Column '{x_column}' not found. Available columns: {', '.join(df.columns)}"
+    if y_column and y_column not in df.columns:
+        return f"Column '{y_column}' not found. Available columns: {', '.join(df.columns)}"
+
+    chart_type = chart_type.lower().strip()
+    supported = ["bar", "line", "scatter", "histogram", "pie"]
+    if chart_type not in supported:
+        return f"Unsupported chart type '{chart_type}'. Choose from: {', '.join(supported)}"
+
+    # Auto-generate title and output filename
+    base_name = file_path.stem
+    if title is None:
+        if chart_type == "histogram":
+            title = f"Histogram of {x_column}"
+        elif chart_type == "pie":
+            title = f"Pie Chart of {x_column}"
+        else:
+            title = f"{chart_type.title()} Chart: {x_column} vs {y_column}"
+
+    if output_filename is None:
+        safe_title = title.lower().replace(" ", "_").replace(":", "").replace("/", "_")[:50]
+        output_filename = f"{safe_title}.png"
+
+    output_path = PLOTS_DIR / output_filename
+
+    try:
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        if chart_type == "bar":
+            if y_column is None:
+                return "Bar chart requires a y_column."
+            # If x is categorical with many values, aggregate
+            if df[x_column].nunique() > 30:
+                plot_df = df.groupby(x_column)[y_column].mean().head(20)
+                ax.bar(plot_df.index.astype(str), plot_df.values)
+                ax.set_xlabel(x_column)
+                ax.set_ylabel(f"{y_column} (mean)")
+            else:
+                plot_df = df.groupby(x_column)[y_column].mean()
+                ax.bar(plot_df.index.astype(str), plot_df.values)
+                ax.set_xlabel(x_column)
+                ax.set_ylabel(f"{y_column} (mean)")
+            plt.xticks(rotation=45, ha="right")
+
+        elif chart_type == "line":
+            if y_column is None:
+                return "Line chart requires a y_column."
+            ax.plot(df[x_column], df[y_column], marker="o", linewidth=1, markersize=3)
+            ax.set_xlabel(x_column)
+            ax.set_ylabel(y_column)
+
+        elif chart_type == "scatter":
+            if y_column is None:
+                return "Scatter chart requires a y_column."
+            ax.scatter(df[x_column], df[y_column], alpha=0.5, s=20)
+            ax.set_xlabel(x_column)
+            ax.set_ylabel(y_column)
+
+        elif chart_type == "histogram":
+            if not pd.api.types.is_numeric_dtype(df[x_column]):
+                return f"Histogram requires a numeric column. '{x_column}' is not numeric."
+            ax.hist(df[x_column].dropna(), bins=30, edgecolor="black")
+            ax.set_xlabel(x_column)
+            ax.set_ylabel("Frequency")
+
+        elif chart_type == "pie":
+            counts = df[x_column].value_counts().head(10)
+            ax.pie(counts.values, labels=counts.index.astype(str), autopct="%1.1f%%", startangle=140)
+            ax.axis("equal")
+
+        ax.set_title(title)
+        plt.tight_layout()
+        plt.savefig(output_path, dpi=150)
+        plt.close(fig)
+
+        return f"Chart saved to plots/{output_filename}"
+
+    except Exception as e:
+        plt.close("all")
+        return f"Error generating chart: {e}"
 
 
 def get_function_schema(func):

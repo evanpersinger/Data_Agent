@@ -27,6 +27,7 @@ from agent_tools import (
     clean_dataset,
     save_dataset,
     interpret_data,
+    plot_data,
     organize_files,
     execute_query,
     search_kaggle_datasets,
@@ -50,6 +51,7 @@ custom_tools = [
     function_tool(clean_dataset),
     function_tool(save_dataset),
     function_tool(interpret_data),
+    function_tool(plot_data),
     function_tool(organize_files),
     function_tool(execute_query),
     function_tool(search_kaggle_datasets),
@@ -77,6 +79,7 @@ agent = Agent(
 
     Your core capabilities:
     - Listing available files across raw_data/, clean_data/, and kaggle_data/ directories
+    - Generating data visualizations (bar, line, scatter, histogram, pie charts) saved as PNG images to plots/
     - Downloading datasets from Kaggle directly to raw_data/ directory
     - Reading and analyzing datasets (CSV, Excel files, text files)
     - Cleaning and organizing data (removing duplicates, handling missing values, standardizing formats)
@@ -87,6 +90,7 @@ agent = Agent(
 
     When working with data files:
     - Use list_files() to see what files are available before referencing them. If a user asks "what files do I have" or "what datasets are available", call list_files() immediately.
+    - Use plot_data() to create charts from datasets. Charts are saved as PNG files to the plots/ directory. Supported types: bar, line, scatter, histogram, pie. Always read or analyze the dataset first to know which columns are available before plotting.
     - Kaggle dataset operations - AUTOMATIC TOOL SELECTION:
       * When user asks to "search", "find", or "look for" a Kaggle dataset → IMMEDIATELY call search_kaggle_datasets(search_term) with the search term they provided
       * When user asks to "download" a Kaggle dataset → IMMEDIATELY call download_kaggle_dataset(dataset_name) with the dataset name/identifier they provided
