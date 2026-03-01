@@ -68,6 +68,55 @@ KAGGLE_KEY=your_kaggle_api_key  # Optional: for Kaggle dataset downloads
 python data_agent.py
 ```
 
+## Docker Setup (Alternative)
+
+Docker provides an isolated environment with pre-configured databases (PostgreSQL). This is useful if you want to avoid installing databases locally or ensure consistent environments across different machines.
+
+### Prerequisites
+- Docker and Docker Compose installed on your system
+
+### Quick Start with Docker
+
+1. Make sure your `.env` file is set up (see Setup step 3 above)
+
+2. Update your `.env` file to use PostgreSQL (optional, SQLite still works):
+```
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/data_agent
+```
+
+3. Start all services (app + PostgreSQL database):
+```bash
+docker-compose up
+```
+
+4. To run in detached mode (background):
+```bash
+docker-compose up -d
+```
+
+5. To stop services:
+```bash
+docker-compose down
+```
+
+6. To rebuild after code changes:
+```bash
+docker-compose up --build
+```
+
+### Docker Benefits
+
+- **PostgreSQL included**: No need to install PostgreSQL locally - it runs in a container
+- **Consistent environment**: Same Python version and dependencies everywhere
+- **Easy cleanup**: Remove containers to reset everything
+- **Data persistence**: Your data directories (`raw_data/`, `clean_data/`, etc.) are mounted as volumes, so files persist between container restarts
+
+### Docker Commands
+
+- View logs: `docker-compose logs -f data-agent`
+- Execute commands in container: `docker-compose exec data-agent bash`
+- Stop and remove volumes: `docker-compose down -v` (WARNING: deletes database data)
+
 ## Usage
 
 Once the agent is running, you can interact with it in the REPL. Example commands:

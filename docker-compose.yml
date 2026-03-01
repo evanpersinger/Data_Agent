@@ -1,0 +1,73 @@
+services:
+  # Data Agent Application
+  data-agent:
+    build: .
+    container_name: data-agent
+    volumes:
+      # Mount data directories so files persist
+      - ./raw_data:/app/raw_data
+      - ./clean_data:/app/clean_data
+      - ./kaggle_data:/app/kaggle_data
+      - ./plots:/app/plots
+      # Mount .env file (make sure it exists)
+      - ./.env:/app/.env:ro
+      # Mount kaggle.json if it exists
+      - ~/.kaggle/kaggle.json:/root/.kaggle/kaggle.json:ro
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/data_agent}
+    stdin_open: true
+    tty: true
+    depends_on:
+      - postgres
+    networks:
+      - data-agent-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: data-agent-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: data_agent
+    ports:
+      - "5433:5432"
+    volumes:
+      # Persist database data
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - data-agent-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MySQL Database (optional - uncomment if needed)
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: data-agent-mysql
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: rootpassword
+  #     MYSQL_DATABASE: data_agent
+  #     MYSQL_USER: datauser
+  #     MYSQL_PASSWORD: datapass
+  #   ports:
+  #     - "3306:3306"
+  #   volumes:
+  #     - mysql_data:/var/lib/mysql
+  #   networks:
+  #     - data-agent-network
+  #   healthcheck:
+  #     test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+volumes:
+  postgres_data:
+  # mysql_data:  # Uncomment if using MySQL
+
+networks:
+  data-agent-network:
+    driver: bridge
