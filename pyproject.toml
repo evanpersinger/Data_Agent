@@ -1,0 +1,152 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "data-agent"
+version = "0.1.0"
+description = "An AI agent specialized in handling, processing, and analyzing large amounts of data"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Evan", email = "evan@example.com"}
+]
+
+dependencies = [
+    # Core AI & LLM
+    "openai>=2.7.1",
+    "openai-agents>=0.5.0",
+    "anthropic>=0.69.0",
+    "google-ai-generativelanguage>=0.6.18",
+    "litellm>=1.74.7",
+    "langsmith>=0.3.45",
+
+    # Data Processing
+    "pandas>=2.2.3",
+    "numpy>=2.2.5",
+    "duckdb>=1.3.0",
+    "pyarrow>=20.0.0",
+    "sqlalchemy>=2.0.41",
+    "sqlmodel>=0.0.24",
+    "pandasql>=0.7.3",
+
+    # Data Formats
+    "openpyxl>=3.1.5",
+    "xlrd>=2.0.2",
+    "xlsxwriter>=3.2.5",
+    "lxml>=6.0.0",
+    "beautifulsoup4>=4.13.4",
+    "pdfminer-six>=20191110",
+    "pymupdf>=1.26.1",
+    "pypdf2>=3.0.1",
+    "python-docx>=0.8.11",
+    "python-pptx>=1.0.2",
+    "docx2txt>=0.9",
+    "extract-msg>=0.29.0",
+    "textract-supercog>=1.6.5.post1",
+
+    # ML & Embeddings
+    "torch>=2.6.0",
+    "transformers>=4.51.3",
+    "fastembed>=0.6.1",
+    "model2vec>=0.6.0",
+    "onnxruntime>=1.22.0",
+
+    # Vision & Image
+    "opencv-python>=4.11.0.86",
+    "pillow>=11.3.0",
+    "vision-parse>=0.1.13",
+
+    # Web & API
+    "fastapi>=0.115.12",
+    "starlette>=0.46.2",
+    "uvicorn>=0.35.0",
+    "httpx>=0.28.1",
+    "requests>=2.32.3",
+    "aiohttp>=3.12.14",
+    "websockets>=15.0.1",
+    "websocket-client>=1.8.0",
+    "playwright>=1.52.0",
+
+    # Kaggle & Data Sources
+    "kaggle>=1.6.16",
+    "kagglehub>=0.3.13",
+    "duckduckgo-search>=8.0.1",
+    "google-news-feed>=1.1.0",
+    "googlenewsdecoder>=0.1.7",
+
+    # Database & ORM
+    "psycopg2-binary>=2.9.10",
+    "boto3>=1.38.9",
+    "weaviate-client>=4.14.1",
+
+    # Configuration & Environment
+    "python-dotenv>=1.1.1",
+    "pydantic>=2.12.3,<3",
+    "pydantic-core>=2.41.4",
+    "pydantic-settings>=2.10.1",
+    "pyyaml>=6.0.2",
+    "toml>=0.10.2",
+
+    # Utilities
+    "click>=8.1.8",
+    "typer>=0.15.4",
+    "rich>=14.0.0",
+    "coloredlogs>=15.0.1",
+    "loguru>=0.7.3",
+    "python-json-logger>=3.3.0",
+    "tqdm>=4.67.1",
+    "tenacity>=9.1.2",
+    "backoff>=2.2.1",
+
+    # Async & Concurrency
+    "aiosqlite>=0.21.0",
+    "aiofiles>=24.1.0",
+    "uvloop>=0.21.0",
+    "nest-asyncio>=1.6.0",
+
+    # Time & Date
+    "python-dateutil>=2.9.0.post0",
+    "dateparser>=1.2.1",
+    "pytz>=2025.2",
+    "tzlocal>=5.3.1",
+    "tzdata>=2025.2",
+
+    # Cryptography & Security
+    "cryptography>=44.0.3",
+    "pycryptodome>=3.23.0",
+    "authlib>=1.2.1,<1.3.2",
+    "argon2-cffi>=25.1.0",
+
+    # JSON & Serialization
+    "jsonschema>=4.25.0",
+    "dataclasses-json>=0.6.7",
+    "orjson>=3.10.18",
+    "marshmallow>=3.26.1",
+    "msgpack>=1.1.1",
+
+    # Visualization & Display
+    "streamlit>=1.45.0",
+    "altair>=5.5.0",
+    "matplotlib>=3.10.3",
+    "pydeck>=0.9.1",
+
+    # MCP & Protocol
+    "mcp>=1.12.0",
+
+    # Development & Debugging
+    "setuptools>=80.9.0",
+    "pip>=25.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "mypy>=1.0",
+    "black>=23.0",
+    "flake8>=6.0",
+]
+
+[tool.uv]
+managed = true

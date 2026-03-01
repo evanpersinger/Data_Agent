@@ -1,8 +1,16 @@
+# Environment & Dependencies
 venv/
 .env
+__pycache__/
+
+# IDE & Editor
+.vscode/
+
+# OS
+*.DS_Store
+
+# Data & Credentials
 clean_data/
 raw_data/
-kaggle.json
-__pycache__/
 kaggle_data/
-.vscode/
+kaggle.json

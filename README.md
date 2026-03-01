@@ -15,17 +15,11 @@ An AI agent specialized in handling, processing, and analyzing large amounts of 
 
 ## Setup
 
-1. Create and activate a virtual environment (recommended):
-```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
+1. Clone the repository and navigate to the project directory
 
-2. Install dependencies:
+2. Install dependencies using uv:
 ```bash
-pip install -r requirements.txt
-# Or if using uv:
-uv pip install -r requirements.txt
+uv sync
 ```
 
 3. Create a `.env` file in the project root with your API keys:
@@ -91,21 +85,23 @@ Once the agent is running, you can interact with it in the REPL. Example command
 
 ```
 data_agent/
-├── data_agent.py     # Data agent configuration and instructions
-├── agent_tools.py    # Data processing functions/tools the agent can use
-├── requirements.txt  # Python dependencies
-├── .env              # Environment variables (API keys) - NOT committed to git
-├── raw_data/         # Directory for raw datasets
-├── clean_data/       # Directory for cleaned/processed datasets
-├── kaggle_data/      # Directory for Kaggle downloads
-├── venv/             # Virtual environment (not committed to git)
-└── README.md         # This file
+├── data_agent.py          # Data agent configuration and instructions
+├── agent_tools.py         # Data processing functions/tools the agent can use
+├── pyproject.toml         # Project metadata and dependencies
+├── uv.lock                # Locked dependency versions for reproducibility
+├── README.md              # This file
+├── .env                   # Environment variables (API keys) - NOT committed to git
+├── .venv/                 # Virtual environment (not committed to git)
+├── raw_data/              # Directory for raw datasets
+├── clean_data/            # Directory for cleaned/processed datasets
+└── kaggle_data/           # Directory for Kaggle downloads
 ```
 
 ## How It Works
 
 - **data_agent.py**: Contains the agent's configuration, instructions, and launches the REPL loop. Uses OpenAI's agentic framework (`openai-agents`) to create an intelligent agent that can use custom tools.
 - **agent_tools.py**: Contains all the functions the agent can use (reading, cleaning, analyzing data, etc.). These functions are converted to tools using `function_tool()` so the agent can call them automatically.
+- **pyproject.toml**: Defines the project metadata and all dependencies, organized by category for easy maintenance.
+- **uv.lock**: Automatically generated lock file that ensures everyone uses the exact same dependency versions for reproducibility.
 
 The agent uses GPT-4O Mini (via OpenAI's agentic framework) to understand your requests and automatically calls the appropriate tools to help you work with your data. The agent maintains conversation history using SQLite sessions, so it remembers previous interactions.
-

@@ -1,4 +1,6 @@
+# Virtual Environments
 venv/
 .env/
-.gitignore
 
+# IDE & Config
+.gitignore

@@ -7,7 +7,7 @@
     ],
 
     "files.exclude": {
-        "**/venv": true,
+        "**/.venv": true,
         "**/__pycache__": true,
         "**/clean_data_example": true,
         "**/kaggle_data_example": true,
