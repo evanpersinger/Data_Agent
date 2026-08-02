@@ -17,8 +17,10 @@ load_dotenv()
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Base directory for file operations
-BASE_DIR = Path(__file__).parent
+# Base directory for file operations. This file lives in backend/, but the data
+# directories sit at the project root (and are mounted there by docker-compose),
+# so walk up one level.
+BASE_DIR = Path(__file__).parent.parent
 RAW_DATA_DIR = BASE_DIR / "raw_data"
 CLEAN_DATA_DIR = BASE_DIR / "clean_data"
 KAGGLE_DATA_DIR = BASE_DIR / "kaggle_data"

@@ -1,8 +1,16 @@
 # Environment & Dependencies
 venv/
+.venv/
 .env
 __pycache__/
 issues.txt
+node_modules/
+
+# Build output
+frontend/dist/
+
+# Agent conversation history (plus SQLite's -shm/-wal sidecar files)
+sessions.db*
 
 # IDE & Editor
 .vscode/

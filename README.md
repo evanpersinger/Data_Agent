@@ -63,10 +63,36 @@ KAGGLE_KEY=your_kaggle_api_key  # Optional: for Kaggle dataset downloads
    
    **Important:** Never commit your `.env` file or `kaggle.json` to git! They contain sensitive API keys.
 
-4. Run the agent:
+4. Run the agent in the terminal:
 ```bash
-python data_agent.py
+python backend/data_agent.py
 ```
+
+## Web UI
+
+There's also a browser frontend, which is usually nicer than the REPL. It needs
+two processes running at once.
+
+1. Start the backend (port 8017):
+```bash
+uv run uvicorn --app-dir backend server:app --reload --port 8017
+```
+
+2. In a second terminal, start the frontend (port 5185):
+```bash
+cd frontend
+pnpm install   # first time only
+pnpm dev
+```
+
+3. Open http://localhost:5185
+
+The frontend proxies `/api` to the backend, so both sides are same-origin and no
+CORS setup is needed. The CLI and the web UI share the same agent and the same
+data directories, so you can switch between them freely.
+
+Conversation history for the web UI is written to `sessions.db` at the project
+root. Delete that file to wipe all chat history.
 
 ## Docker Setup (Alternative)
 
@@ -136,8 +162,18 @@ Once the agent is running, you can interact with it in the REPL. Example command
 
 ```
 data_agent/
-├── data_agent.py          # Data agent configuration and instructions
-├── agent_tools.py         # Data processing functions/tools the agent can use
+├── backend/
+│   ├── data_agent.py      # Agent configuration, instructions, and the CLI REPL
+│   ├── agent_tools.py     # Data processing functions/tools the agent can use
+│   └── server.py          # FastAPI wrapper that exposes the agent over HTTP
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx        # Chat UI
+│   │   ├── api.ts         # Streaming fetch client
+│   │   ├── types.ts       # Shared types
+│   │   └── index.css      # Theme (colors live in the :root block)
+│   ├── vite.config.ts     # Dev server on 5185, proxies /api to 8017
+│   └── package.json
 ├── pyproject.toml         # Project metadata and dependencies
 ├── uv.lock                # Locked dependency versions for reproducibility
 ├── README.md              # This file
@@ -145,14 +181,21 @@ data_agent/
 ├── .venv/                 # Virtual environment (not committed to git)
 ├── raw_data/              # Directory for raw datasets
 ├── clean_data/            # Directory for cleaned/processed datasets
-└── kaggle_data/           # Directory for Kaggle downloads
+├── kaggle_data/           # Directory for Kaggle downloads
+└── plots/                 # Charts written by plot_data()
 ```
 
 ## How It Works
 
-- **data_agent.py**: Contains the agent's configuration, instructions, and launches the REPL loop. Uses OpenAI's agentic framework (`openai-agents`) to create an intelligent agent that can use custom tools.
-- **agent_tools.py**: Contains all the functions the agent can use (reading, cleaning, analyzing data, etc.). These functions are converted to tools using `function_tool()` so the agent can call them automatically.
+- **backend/data_agent.py**: Contains the agent's configuration, instructions, and launches the REPL loop. Uses OpenAI's agentic framework (`openai-agents`) to create an intelligent agent that can use custom tools.
+- **backend/agent_tools.py**: Contains all the functions the agent can use (reading, cleaning, analyzing data, etc.). These functions are converted to tools using `function_tool()` so the agent can call them automatically.
+- **backend/server.py**: Imports the same agent object and streams its output over `POST /api/chat`, so the browser can talk to it. Importing `data_agent` does not start the REPL, since that is guarded by `__name__ == "__main__"`.
+- **frontend/**: Vite + React + TypeScript. Deliberately minimal, just a chat window that streams text back. No Node server in production, since the Python backend does the real work.
 - **pyproject.toml**: Defines the project metadata and all dependencies, organized by category for easy maintenance.
 - **uv.lock**: Automatically generated lock file that ensures everyone uses the exact same dependency versions for reproducibility.
+
+Note that the data directories live at the project root, not inside `backend/`.
+`agent_tools.py` resolves them with `Path(__file__).parent.parent`, and
+`docker-compose.yml` mounts them at `/app`, so the two stay in sync.
 
 The agent uses GPT-4O Mini (via OpenAI's agentic framework) to understand your requests and automatically calls the appropriate tools to help you work with your data. The agent maintains conversation history using SQLite sessions, so it remembers previous interactions.

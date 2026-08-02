@@ -30,6 +30,9 @@ clean_data/
 kaggle_data/
 plots/
 
+# Frontend (served separately by Vite, not needed in the Python image)
+frontend/
+
 # Logs
 *.log
 

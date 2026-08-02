@@ -150,3 +150,11 @@ dev = [
 
 [tool.uv]
 managed = true
+
+# The source lives in backend/ but imports itself flat (`from agent_tools import ...`),
+# so ship backend/'s contents at the wheel root rather than as a `backend` package.
+# Without this, hatchling can't find a module matching the project name and the
+# editable install in the Dockerfile fails.
+[tool.hatch.build.targets.wheel]
+only-include = ["backend"]
+sources = ["backend"]
