@@ -84,14 +84,14 @@ Docker provides an isolated environment with pre-configured databases (PostgreSQ
 DATABASE_URL=postgresql://postgres:postgres@postgres:5432/data_agent
 ```
 
-3. Start all services (app + PostgreSQL database):
-```bash
-docker-compose up
-```
-
-4. To run in detached mode (background):
+3. Start all services in detached mode (runs in background, doesn't require keeping a terminal open):
 ```bash
 docker-compose up -d
+```
+
+4. To start services and view logs in the terminal:
+```bash
+docker-compose up
 ```
 
 5. To stop services:
@@ -101,7 +101,7 @@ docker-compose down
 
 6. To rebuild after code changes:
 ```bash
-docker-compose up --build
+docker-compose up --build -d
 ```
 
 ### Docker Benefits
@@ -113,9 +113,11 @@ docker-compose up --build
 
 ### Docker Commands
 
-- View logs: `docker-compose logs -f data-agent`
+- View logs (useful when running in detached mode): `docker-compose logs -f data-agent`
 - Execute commands in container: `docker-compose exec data-agent bash`
 - Stop and remove volumes: `docker-compose down -v` (WARNING: deletes database data)
+
+For more Docker commands, see `commands.md`.
 
 ## Usage
 
