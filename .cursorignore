@@ -1,6 +1,0 @@
-# Virtual Environments
-venv/
-.env/
-
-# IDE & Config
-.gitignore
