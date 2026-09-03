@@ -11,6 +11,7 @@
         "**/__pycache__": true,
         "**/clean_data_example": true,
         "**/kaggle_data_example": true,
-        "**/raw_data_example": true
+        "**/raw_data_example": true,
+        ".tokensave": true
     }
 }

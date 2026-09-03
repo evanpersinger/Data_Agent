@@ -2,22 +2,16 @@
 # This agent is specialized in handling, processing, and analyzing large amounts of data.
 # Using OpenAI's Assistants API (agentic framework)
 
-import os
-import json
-import time
 from dotenv import load_dotenv
-from openai import OpenAI
 
 # Load environment variables from .env file
 load_dotenv()
-from agents import Agent, Runner, SQLiteSession, WebSearchTool, function_tool, ModelSettings
+from agents import Agent, Runner, SQLiteSession, WebSearchTool, function_tool
 from agents.stream_events import RawResponsesStreamEvent
-from agents.tracing import set_tracing_disabled
 from openai.types.responses import ResponseTextDeltaEvent
 import asyncio
 
 
-# import tools from agent_tools.py
 from agent_tools import (
     list_files,
     read_file,
@@ -32,13 +26,8 @@ from agent_tools import (
     execute_query,
     search_kaggle_datasets,
     download_kaggle_dataset,
-    get_function_schema
 )
 
-
-
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 # Convert custom functions to tools using function_tool
@@ -121,8 +110,6 @@ agent = Agent(
 )
 
 
-# main function
-# this is the main function that will be called to run the agent
 async def main():
     # Sessions store conversation history so the agent remembers previous messages
     session = SQLiteSession(session_id="example_session")
@@ -132,26 +119,21 @@ async def main():
     # Interactive loop to ask questions
     while True:
         try:
-            # Get user input
             user_input = input("> ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nSession ended")
             break
         
-        # Check if user wants to quit
-        # if the user inputs 'quit', 'exit', or 'q', the session will end
         if user_input.lower() in ['quit', 'exit', 'q']:
             print("Session ended")
             break
         
-        # Skip empty inputs
         if not user_input:
             continue
         
         # Print box format
         print("\nData Agent:")
         print("-----------------")
-        # print("Agent: ", end="", flush=True)
         
         # Run the agent with streaming (shows response as it's generated)
         result = Runner.run_streamed(agent, user_input, session=session)
@@ -167,7 +149,6 @@ async def main():
 
 
 
-# run the agent
 if __name__ == "__main__":
     try:
         asyncio.run(main())

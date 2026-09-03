@@ -5,17 +5,12 @@ import pandas as pd
 from pathlib import Path
 import os
 import json
-import inspect
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
-from openai import OpenAI
 
 # Load environment variables from .env file
 load_dotenv()
 
-
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Base directory for file operations. This file lives in backend/, but the data
 # directories sit at the project root (and are mounted there by docker-compose),
@@ -429,6 +424,32 @@ def execute_query(query: str, database_url: str = None) -> str:
         return f"Database error: {str(e)}"
 
 
+# Resolve Kaggle credentials from the environment, falling back to kaggle.json in
+# the project root. Both Kaggle libraries read these off os.environ rather than
+# taking arguments, so they are exported here. Returns the pair as found so
+# callers can report which half is missing.
+def _load_kaggle_credentials() -> tuple[str | None, str | None]:
+    username = os.getenv("KAGGLE_USERNAME")
+    key = os.getenv("KAGGLE_KEY") or os.getenv("KAGGLE_API_KEY")
+
+    if not username or not key:
+        kaggle_json_path = BASE_DIR / "kaggle.json"
+        if kaggle_json_path.exists():
+            try:
+                with open(kaggle_json_path, 'r') as f:
+                    kaggle_creds = json.load(f)
+                username = username or kaggle_creds.get("username", "")
+                key = key or kaggle_creds.get("key", "")
+            except Exception:
+                pass  # If we can't read it, the caller reports the missing credentials
+
+    if username and key:
+        os.environ["KAGGLE_USERNAME"] = username
+        os.environ["KAGGLE_KEY"] = key
+
+    return username, key
+
+
 # search for Kaggle datasets
 def search_kaggle_datasets(search_term: str, max_results: int = 5) -> str:
     """
@@ -442,28 +463,9 @@ def search_kaggle_datasets(search_term: str, max_results: int = 5) -> str:
         A formatted string with matching datasets and their identifiers
     """
     try:
-        # Check for credentials
-        kaggle_username = os.getenv("KAGGLE_USERNAME")
-        kaggle_key = os.getenv("KAGGLE_KEY") or os.getenv("KAGGLE_API_KEY")
-        
-        # If not in env vars, try loading from kaggle.json
-        if not kaggle_username or not kaggle_key:
-            kaggle_json_path = BASE_DIR / "kaggle.json"
-            if kaggle_json_path.exists():
-                try:
-                    with open(kaggle_json_path, 'r') as f:
-                        kaggle_creds = json.load(f)
-                        kaggle_username = kaggle_username or kaggle_creds.get("username", "")
-                        kaggle_key = kaggle_key or kaggle_creds.get("key", "")
-                except Exception:
-                    pass
-        
+        kaggle_username, kaggle_key = _load_kaggle_credentials()
         if not kaggle_username or not kaggle_key:
             return "Error: Kaggle authentication not configured. Please set up your Kaggle API credentials."
-        
-        # Set environment variables
-        os.environ["KAGGLE_USERNAME"] = kaggle_username
-        os.environ["KAGGLE_KEY"] = kaggle_key
         
         # Use kaggle library for searching
         try:
@@ -578,23 +580,7 @@ def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
     try:
         import shutil
         
-        # Check for credentials before importing
-        # Support both KAGGLE_KEY and KAGGLE_API_KEY for compatibility
-        kaggle_username = os.getenv("KAGGLE_USERNAME")
-        kaggle_key = os.getenv("KAGGLE_KEY") or os.getenv("KAGGLE_API_KEY")
-        
-        # If not in env vars, try loading from kaggle.json in project root
-        if not kaggle_username or not kaggle_key:
-            kaggle_json_path = BASE_DIR / "kaggle.json"
-            if kaggle_json_path.exists():
-                try:
-                    with open(kaggle_json_path, 'r') as f:
-                        kaggle_creds = json.load(f)
-                        kaggle_username = kaggle_username or kaggle_creds.get("username", "")
-                        kaggle_key = kaggle_key or kaggle_creds.get("key", "")
-                except Exception:
-                    pass  # If we can't read it, continue with error message
-        
+        kaggle_username, kaggle_key = _load_kaggle_credentials()
         if not kaggle_username or not kaggle_key:
             return f"Error: Kaggle authentication not configured. Please set up your Kaggle API credentials:\n\n" \
                    f"1. Go to https://www.kaggle.com/settings and create an API token\n" \
@@ -605,10 +591,6 @@ def download_kaggle_dataset(dataset: str, unzip: bool = True) -> str:
                    f"  KAGGLE_USERNAME: {'SET' if kaggle_username else 'NOT SET'}\n" \
                    f"  KAGGLE_KEY: {'SET' if kaggle_key else 'NOT SET'}\n\n" \
                    f"After adding to .env, restart the script."
-        
-        # Set environment variables explicitly for Kaggle library
-        os.environ["KAGGLE_USERNAME"] = kaggle_username
-        os.environ["KAGGLE_KEY"] = kaggle_key
         
         # Use kagglehub (newer, simpler API)
         try:
@@ -1040,50 +1022,3 @@ def plot_data(
     except Exception as e:
         plt.close("all")
         return f"Error generating chart: {e}"
-
-
-def get_function_schema(func):
-    """Convert a Python function to OpenAI function calling schema."""
-    sig = inspect.signature(func)
-    doc = inspect.getdoc(func) or ""
-    
-    properties = {}
-    required = []
-    
-    for param_name, param in sig.parameters.items():
-        if param_name == 'self':
-            continue
-            
-        param_type = "string"  # default
-        if param.annotation != inspect.Parameter.empty:
-            if param.annotation == bool:
-                param_type = "boolean"
-            elif param.annotation == int:
-                param_type = "integer"
-            elif param.annotation == float:
-                param_type = "number"
-        
-        param_info = {"type": param_type, "description": ""}
-        
-        if param.default != inspect.Parameter.empty:
-            # Optional parameter - don't add to required
-            if param.default is not None:
-                param_info["default"] = str(param.default)
-        else:
-            required.append(param_name)
-        
-        properties[param_name] = param_info
-    
-    return {
-        "type": "function",
-        "function": {
-            "name": func.__name__,
-            "description": doc.split('\n')[0] if doc else f"Call the {func.__name__} function",
-            "parameters": {
-                "type": "object",
-                "properties": properties,
-                "required": required
-            }
-        }
-    }
-

@@ -4,12 +4,15 @@ An AI agent specialized in handling, processing, and analyzing large amounts of 
 
 ## Features
 
-- **Download Data**: Download datasets directly from Kaggle
+- **Search & Download Data**: Find Kaggle datasets by keyword and download them
+- **List Files**: See what's available across the data directories
 - **Read Data**: Read CSV, Excel, and text files
 - **Analyze Data**: Get statistics, missing values, and data structure insights
 - **Clean Data**: Remove duplicates, handle missing values, standardize formats
 - **Interpret Data**: Get detailed insights about your datasets and data quality
+- **Plot Data**: Generate bar, line, scatter, histogram, and pie charts as PNGs in `plots/`
 - **Database Operations**: Execute SQL queries against databases (SQLite, PostgreSQL, MySQL, etc.)
+- **Web Search**: Look things up online when a dataset needs outside context
 - **Organize Files**: Move files into organized folders for better data management
 - **Save & Export**: Save processed data in CSV or Excel formats
 
@@ -65,7 +68,7 @@ KAGGLE_KEY=your_kaggle_api_key  # Optional: for Kaggle dataset downloads
 
 4. Run the agent in the terminal:
 ```bash
-python backend/data_agent.py
+uv run python backend/data_agent.py
 ```
 
 ## Web UI
@@ -78,14 +81,14 @@ two processes running at once.
 uv run uvicorn --app-dir backend server:app --reload --port 8017
 ```
 
-2. In a second terminal, start the frontend (port 5185):
+2. In a second terminal, start the frontend (port 3006):
 ```bash
 cd frontend
 pnpm install   # first time only
 pnpm dev
 ```
 
-3. Open http://localhost:5185
+3. Open http://localhost:3006
 
 The frontend proxies `/api` to the backend, so both sides are same-origin and no
 CORS setup is needed. The CLI and the web UI share the same agent and the same
@@ -149,12 +152,14 @@ For more Docker commands, see `commands.md`.
 
 Once the agent is running, you can interact with it in the REPL. Example commands:
 
+- "What files do I have?"
 - "Download the titanic dataset from Kaggle"
 - "Read the file data.csv"
 - "Analyze the dataset sales.xlsx"
 - "Clean the dataset messy_data.csv"
 - "Interpret the data in customers.csv"
 - "Run this SQL query: SELECT * FROM users WHERE age > 25"
+- "Plot a bar chart of sales by region from sales.csv"
 - "Organize the file report.pdf into the reports folder"
 - "Save the cleaned data to output.csv"
 
@@ -172,8 +177,11 @@ data_agent/
 │   │   ├── api.ts         # Streaming fetch client
 │   │   ├── types.ts       # Shared types
 │   │   └── index.css      # Theme (colors live in the :root block)
-│   ├── vite.config.ts     # Dev server on 5185, proxies /api to 8017
+│   ├── vite.config.ts     # Dev server on 3006, proxies /api to 8017
 │   └── package.json
+├── Dockerfile             # Image for the agent, installs the project with uv
+├── docker-compose.yml     # Agent plus a PostgreSQL service
+├── commands.md            # Docker command reference
 ├── pyproject.toml         # Project metadata and dependencies
 ├── uv.lock                # Locked dependency versions for reproducibility
 ├── README.md              # This file
@@ -182,7 +190,8 @@ data_agent/
 ├── raw_data/              # Directory for raw datasets
 ├── clean_data/            # Directory for cleaned/processed datasets
 ├── kaggle_data/           # Directory for Kaggle downloads
-└── plots/                 # Charts written by plot_data()
+├── plots/                 # Charts written by plot_data()
+└── sessions.db            # Web UI chat history (SQLite) - NOT committed to git
 ```
 
 ## How It Works
@@ -198,4 +207,4 @@ Note that the data directories live at the project root, not inside `backend/`.
 `agent_tools.py` resolves them with `Path(__file__).parent.parent`, and
 `docker-compose.yml` mounts them at `/app`, so the two stay in sync.
 
-The agent uses GPT-4O Mini (via OpenAI's agentic framework) to understand your requests and automatically calls the appropriate tools to help you work with your data. The agent maintains conversation history using SQLite sessions, so it remembers previous interactions.
+The agent uses GPT-4o mini (via OpenAI's agentic framework) to understand your requests and automatically calls the appropriate tools to help you work with your data. The agent maintains conversation history using SQLite sessions, so it remembers previous interactions.
